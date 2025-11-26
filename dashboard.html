@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iGarden 迪士尼 - 智能架构看板 v2.2</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Mermaid.js -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+    <!-- Panzoom 库 -->
+    <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
+    <!-- Marked.js 用于解析 Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- 图标库 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* 画布背景 */
+        .canvas-bg {
+            background-color: #f8fafc;
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+
+        /* 容器样式 */
+        .diagram-container {
+            width: 100%;
+            height: 100%;
+            overflow: visible; 
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start;
+            position: relative;
+        }
+
+        .diagram-container svg {
+            max-width: none !important; 
+            height: auto !important;
+            min-height: 100%;
+            overflow: visible !important;
+        }
+
+        /* 面板过渡动画 */
+        .panel-slide {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+        }
+        .panel-hidden {
+            transform: translateX(100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* 聊天气泡样式 */
+        .chat-bubble {
+            max-width: 85%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            position: relative;
+            word-wrap: break-word;
+        }
+        .chat-user {
+            background-color: #e0e7ff;
+            color: #3730a3;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+        .chat-ai {
+            background-color: #f1f5f9;
+            color: #334155;
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+            border: 1px solid #e2e8f0;
+        }
+        .chat-ai pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 8px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin-top: 8px;
+            font-size: 0.8rem;
+        }
+        /* AI思考动画 */
+        .typing-dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: #94a3b8;
+            animation: typing 1.4s infinite ease-in-out both;
+            margin: 0 2px;
+        }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen w-screen overflow-hidden flex">
+
+    <!-- 左侧导航 -->
+    <aside class="w-64 bg-slate-900 text-white flex flex-col shadow-2xl z-20 shrink-0">
+        <div class="p-6 border-b border-slate-700 bg-indigo-600">
+            <h1 class="text-xl font-bold flex items-center gap-2">
+                <i class="fas fa-robot"></i>
+                iGarden 迪士尼
+            </h1>
+            <p class="text-xs text-indigo-200 mt-1">架构看板 v2.2 (Logic Upd)</p>
+            <p class="text-xs text-indigo-300 mt-2 flex items-center gap-1">
+                <i class="fas fa-user-edit"></i> 作者：韦翔斌
+            </p>
+        </div>
+
+        <nav class="flex-1 overflow-y-auto py-4 space-y-1">
+            <button onclick="switchTab('hardware')" id="btn-hardware" class="nav-item w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors border-l-4 border-transparent flex items-center gap-3">
+                <i class="fas fa-microchip w-5 text-center"></i>
+                <span>硬件拓扑图</span>
+            </button>
+            <button onclick="switchTab('software')" id="btn-software" class="nav-item w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors border-l-4 border-transparent flex items-center gap-3">
+                <i class="fas fa-network-wired w-5 text-center"></i>
+                <span>ROS 2 软件架构</span>
+            </button>
+            <button onclick="switchTab('algorithm')" id="btn-algorithm" class="nav-item w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors border-l-4 border-transparent flex items-center gap-3">
+                <i class="fas fa-code-branch w-5 text-center"></i>
+                <span>红外瞄准算法</span>
+            </button>
+            <button onclick="switchTab('fsm')" id="btn-fsm" class="nav-item w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors border-l-4 border-transparent flex items-center gap-3">
+                <i class="fas fa-gamepad w-5 text-center"></i>
+                <span>游戏状态机</span>
+            </button>
+        </nav>
+        
+        <div class="p-4 bg-slate-800 border-t border-slate-700 space-y-2">
+             <button onclick="resetView()" class="w-full py-2 bg-indigo-500 hover:bg-indigo-600 rounded text-sm font-medium transition flex items-center justify-center gap-2">
+                <i class="fas fa-compress-arrows-alt"></i> 适配屏幕
+             </button>
+        </div>
+    </aside>
+
+    <!-- 主内容 -->
+    <main class="flex-1 flex flex-col relative h-full min-w-0">
+        
+        <!-- 工具栏 -->
+        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shadow-sm z-10 shrink-0">
+            <div id="header-title" class="text-lg font-semibold text-slate-700">
+                硬件拓扑结构图
+            </div>
+            <div class="flex items-center gap-3">
+                
+                <!-- 缩放控制 -->
+                <div class="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                    <button onclick="zoomOut()" class="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-white rounded transition">
+                        <i class="fas fa-minus text-xs"></i>
+                    </button>
+                    <span id="zoom-level" class="w-12 text-center font-mono text-sm text-slate-600 select-none">--%</span>
+                    <button onclick="zoomIn()" class="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-white rounded transition">
+                        <i class="fas fa-plus text-xs"></i>
+                    </button>
+                </div>
+
+                <div class="w-px h-6 bg-slate-300"></div>
+
+                <!-- 编辑器开关 -->
+                <button onclick="toggleEditor()" id="btn-edit-toggle" class="flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 hover:border-indigo-500 hover:text-indigo-600 text-slate-700 rounded-lg transition shadow-sm text-sm">
+                    <i class="fas fa-edit"></i>
+                    <span class="hidden sm:inline">源码</span>
+                </button>
+
+                <!-- AI 助手开关 -->
+                <button onclick="toggleAI()" id="btn-ai-toggle" class="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600 text-white rounded-lg transition shadow-sm text-sm font-medium">
+                    <i class="fas fa-sparkles"></i>
+                    <span>AI 助手</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- 画布容器 -->
+        <div class="flex-1 relative overflow-hidden canvas-bg cursor-move" id="canvas-wrapper">
+            <div id="hardware" class="diagram-container"></div>
+            <div id="software" class="diagram-container hidden"></div>
+            <div id="algorithm" class="diagram-container hidden"></div>
+            <div id="fsm" class="diagram-container hidden"></div>
+            
+            <!-- 加载提示 -->
+            <div id="loading" class="absolute inset-0 flex items-center justify-center bg-white/80 z-50 pointer-events-none transition-opacity duration-300 opacity-0">
+                <div class="flex flex-col items-center">
+                    <i class="fas fa-circle-notch fa-spin text-4xl text-indigo-600 mb-3"></i>
+                    <p class="text-slate-600 font-medium">渲染图表中...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 面板：实时代码编辑器 -->
+        <div id="editor-panel" class="panel-slide panel-hidden absolute top-16 right-0 bottom-0 w-1/3 min-w-[350px] bg-white border-l border-slate-200 shadow-2xl flex flex-col z-40">
+            <div class="p-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                <h3 class="font-bold text-slate-700 flex items-center gap-2 text-sm">
+                    <i class="fas fa-code text-indigo-500"></i> Mermaid 源码
+                </h3>
+                <div class="text-xs text-slate-400">Ctrl+S 保存</div>
+            </div>
+            <div class="flex-1 relative">
+                <textarea id="code-editor" class="w-full h-full p-4 font-mono text-xs leading-relaxed text-slate-700 bg-slate-50 resize-none outline-none focus:bg-white transition-colors" spellcheck="false"></textarea>
+            </div>
+            <div class="p-2 bg-slate-100 border-t border-slate-200 text-xs text-slate-500 flex justify-between items-center">
+                <span id="editor-status">就绪</span>
+            </div>
+        </div>
+
+        <!-- 面板：AI 助手 -->
+        <div id="ai-panel" class="panel-slide panel-hidden absolute top-16 right-0 bottom-0 w-1/3 min-w-[350px] bg-white border-l border-slate-200 shadow-2xl flex flex-col z-50">
+            <div class="p-4 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white flex justify-between items-center shrink-0">
+                <h3 class="font-bold flex items-center gap-2">
+                    <i class="fas fa-sparkles"></i> 架构师助手
+                </h3>
+                <button onclick="toggleAI()" class="hover:bg-white/20 rounded p-1 transition"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <!-- 聊天记录区域 -->
+            <div id="chat-history" class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+                <!-- 欢迎语 -->
+                <div class="chat-bubble chat-ai flex flex-col gap-2">
+                    <p>👋 你好！我是您的 iGarden 机器人架构助手。</p>
+                    <p>我可以帮您：</p>
+                    <ul class="list-disc list-inside text-xs space-y-1 ml-1 text-slate-600">
+                        <li>解释当前架构图的逻辑</li>
+                        <li>优化 Mermaid 代码结构</li>
+                        <li>生成新的功能模块流程图</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 快捷指令 -->
+            <div class="px-4 py-2 bg-white border-t border-slate-100 flex gap-2 overflow-x-auto no-scrollbar shrink-0">
+                <button onclick="sendQuickAction('explain')" class="whitespace-nowrap px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs rounded-full hover:bg-indigo-100 transition border border-indigo-100">
+                    <i class="fas fa-book-open mr-1"></i> 解读当前图
+                </button>
+                <button onclick="sendQuickAction('optimize')" class="whitespace-nowrap px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs rounded-full hover:bg-emerald-100 transition border border-emerald-100">
+                    <i class="fas fa-magic mr-1"></i> 优化布局
+                </button>
+            </div>
+
+            <!-- 输入区域 -->
+            <div class="p-4 bg-white border-t border-slate-200 shrink-0">
+                <div class="relative">
+                    <textarea id="ai-input" rows="1" class="w-full pl-4 pr-12 py-3 bg-slate-100 border-0 rounded-xl focus:ring-2 focus:ring-violet-500 focus:bg-white resize-none text-sm transition" placeholder="输入需求，例如：'添加一个低电量返航的状态'..." onkeydown="handleInputKey(event)"></textarea>
+                    <button onclick="sendMessage()" id="btn-send" class="absolute right-2 bottom-2 p-1.5 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fas fa-paper-plane text-xs"></i>
+                    </button>
+                </div>
+                <div class="text-[10px] text-center text-slate-400 mt-2">Powered by Gemini 2.5 Flash</div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        const apiKey = ""; // Runtime Environment will inject key
+
+        // 初始 Mermaid 代码数据
+        const diagrams = {
+            'hardware': `
+graph TD
+    subgraph Handheld_Controller ["玩家手持端 (ESP32)"]
+        C_MCU["ESP32 主控"]
+        C_Bat["锂电池电源"]
+        C_UWB["UWB 标签模组"]
+        C_IR["红外发射管 LED"]
+        C_Btn["交互按键"]
+        C_Bluetooth["蓝牙 BLE"]
+
+        C_Bat --> C_MCU
+        C_MCU -->|PWM 38kHz| C_IR
+        C_MCU <-->|"UART/SPI"| C_UWB
+        C_MCU -->|GPIO| C_Btn
+        C_MCU -.->|"BLE 广播"| R_Bluetooth
+    end
+
+    subgraph Robot_System ["机器人本体"]
+        
+        subgraph Power_System ["电源管理"]
+            Bat_Main["动力锂电池 12V/24V"]
+            DC_DC["降压模块 5V/12V"]
+        end
+
+        subgraph Upper_Computer ["上位机 (AI与决策)"]
+            RK3588["RK3588 主控板 <br/> Ubuntu + ROS 2"]
+            Cam["USB 广角摄像头"]
+            UWB_Base["UWB 基站模组"]
+            Screen_L["1.28寸 圆形屏 (左眼)"]
+            Screen_R["1.28寸 圆形屏 (右眼)"]
+            Audio["扬声器"]
+            IR_Recv["红外接收头 <br/> (直接GPIO连接)"]
+            R_Bluetooth["板载蓝牙"]
+        end
+
+        subgraph Lower_Computer ["下位机 (运动控制)"]
+            STM32["STM32F4/F1 单片机"]
+            IMU["6轴 IMU 陀螺仪"]
+            Motor_Dr["电机驱动板"]
+            Servo_Lift["升降机构舵机/推杆"]
+            LED_Strip["RGB 血条灯带"]
+            Motors["全向轮电机 M1-M3/M4"]
+        end
+
+        %% 连接关系
+        Bat_Main --> DC_DC
+        DC_DC --> RK3588
+        DC_DC --> STM32
+        DC_DC --> Motor_Dr
+
+        Cam ==>|"USB 3.0"| RK3588
+        UWB_Base <-->|"USB/UART"| RK3588
+        IR_Recv -->|"GPIO (Python处理)"| RK3588
+        RK3588 -->|"SPI/USB"| Screen_L
+        RK3588 -->|"SPI/USB"| Screen_R
+        RK3588 -->|"I2S/USB"| Audio
+        RK3588 <==>|"UART/USB Serial"| STM32
+
+        STM32 <-->|I2C| IMU
+        STM32 -->|PWM| Motor_Dr
+        STM32 -->|PWM| Servo_Lift
+        STM32 -->|GPIO| LED_Strip
+        Motor_Dr --> Motors
+    end
+
+    %% 无线连接
+    C_UWB -.->|"无线测距 ToF"| UWB_Base
+    C_IR -.->|"红外光束 NEC"| IR_Recv
+
+    style RK3588 fill:#e0e7ff,stroke:#4338ca,stroke-width:2px
+    style STM32 fill:#dbeafe,stroke:#2563eb,stroke-width:2px
+            `,
+            'software': `
+graph TD
+    %% 定义样式
+    classDef driver fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef ai fill:#f3e5f5,stroke:#4a148c,stroke-width:2px;
+    classDef logic fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef out fill:#e0f2f1,stroke:#004d40,stroke-width:2px;
+
+    %% -------------------
+    %% 硬件抽象与驱动层
+    %% -------------------
+    subgraph Hardware_Device ["硬件层 (Hardware Layer)"]
+        HW_Cam([USB 摄像头])
+        HW_UWB([UWB 模组])
+        HW_STM32([STM32 下位机])
+        HW_IR_Sensor([红外接收管])
+        
+        %% 物理连接
+        HW_IR_Sensor -.->|GPIO中断| HW_STM32
+        style Hardware_Device fill:#fafafa,stroke:#9e9e9e
+    end
+
+    subgraph Driver_Layer ["驱动接入层 (Driver Layer)"]
+        Node_Cam["📷 相机驱动<br/>(v4l2_camera)"]:::driver
+        Node_UWB["📡 UWB 驱动<br/>(Serial Read)"]:::driver
+        Node_Bridge["Bridge 桥接节点<br/>(STM32 Comms)"]:::driver
+    end
+
+    %% -------------------
+    %% 感知与融合层
+    %% -------------------
+    subgraph Perception_Layer ["感知与算法层 (Perception Layer)"]
+        Node_YOLO["🧠 YOLO 视觉节点<br/>(RKNN / 人体检测)"]:::ai
+        Node_AprilTag["🚩 AprilTag 节点<br/>(电子围栏检测)"]:::ai
+        
+        %% 新增：目标筛选逻辑
+        Node_Gating["🎯 目标筛选 (Target Gating)<br/>(Vis Dist vs UWB Dist)"]:::ai
+        
+        Node_Fusion["📍 状态估计/融合<br/>(Visual + UWB + Odom)"]:::ai
+        Node_IR_Filter["🛡️ 红外判定节点<br/>(漏桶算法 Leaky Bucket)"]:::ai
+    end
+
+    %% -------------------
+    %% 决策与控制层
+    %% -------------------
+    subgraph Decision_Layer ["决策控制层 (Decision Layer)"]
+        Node_BT{{"🌲 行为树核心<br/>(Behavior Tree)"}}:::logic
+        
+        %% 详细逻辑模块
+        Logic_Safety["⛔ 安全与规则裁决<br/>(Safety & Rules)"]:::logic
+        Logic_Chase["🏃 追逐策略<br/>(Visual Servo + PID)"]:::logic
+        Logic_Defense["🛡️ 防御/盲操策略<br/>(Blind Spin / Retreat)"]:::logic
+        Logic_Game["🎮 游戏状态管理<br/>(Win / Lose / HP)"]:::logic
+    end
+
+    %% -------------------
+    %% 交互与表现层
+    %% -------------------
+    subgraph Output_Layer ["交互表现层 (Presentation Layer)"]
+        Node_UI["👀 表情/屏幕渲染<br/>(PyQt / PyGame)"]:::out
+        Node_Audio["🔊 音效播放"]:::out
+    end
+
+    %% 连线关系：硬件 -> 驱动
+    HW_Cam ==> Node_Cam
+    HW_UWB ==> Node_UWB
+    HW_STM32 <==>|"UART (串口协议)"| Node_Bridge
+
+    %% 连线关系：驱动 -> 感知
+    Node_Cam -->|Image Raw| Node_YOLO
+    Node_Cam -->|Image Raw| Node_AprilTag
+    Node_UWB -->|距离数据 D_uwb| Node_Gating
+    Node_Bridge -->|里程计 & IMU| Node_Fusion
+    Node_Bridge -->|"红外解码事件/RAW"| Node_IR_Filter
+
+    %% 连线关系：感知内部流转
+    Node_YOLO -->|"所有检测框 D_vis"| Node_Gating
+    Node_Gating -->|"锁定目标 ID"| Node_Fusion
+    
+    %% 连线关系：感知 -> 决策
+    Node_Gating -->|"目标偏差 Error_x"| Node_BT
+    Node_AprilTag -->|"墙壁距离 D_tag"| Logic_Safety
+    Node_Fusion -->|"机器人融合位姿"| Node_BT
+    Node_IR_Filter -->|"有效命中 (Hit)"| Logic_Game
+
+    %% 连线关系：决策内部
+    Logic_Safety -->|"强制接管/暂停"| Node_BT
+    Node_BT <--> Logic_Chase
+    Node_BT <--> Logic_Defense
+    Node_BT <--> Logic_Game
+
+    %% 连线关系：决策 -> 输出/执行
+    Logic_Chase -->|"cmd_vel (PID速度)"| Node_Bridge
+    Logic_Defense -->|"cmd_vel (盲操速度)"| Node_Bridge
+    Logic_Safety -->|"急停/反向力场"| Node_Bridge
+    Logic_Game -->|"血量/灯效指令"| Node_Bridge
+    Logic_Game -->|"表情状态"| Node_UI
+    Logic_Game -->|"音效触发"| Node_Audio
+
+            `,
+            'algorithm': `
+graph TD
+    Start(("开始循环")) --> Init["初始化: <br/>Score=0 <br/>阈值 Threshold=20 <br/>上限 Max=80 <br/>衰减 Decay=25"]
+    
+    subgraph Time_Loop ["主循环 10Hz (100ms)"]
+        Check_IR{"检测到有效NEC信号?"}
+        
+        Check_IR -- Yes --> Add_Score["积分快速增加: <br/> Score += 30 (瞬间锁定)"]
+        Check_IR -- No --> Do_Nothing["保持"]
+        
+        Add_Score --> Clamp_Max["限制上限: <br/> Score = min(Score, 80)"]
+        Do_Nothing --> Clamp_Max
+        
+        Clamp_Max --> Decr_Score["自然衰减 (快速释放): <br/> Score -= 25"]
+        Decr_Score --> Clamp_Min["限制下限: <br/> Score = max(Score, 0)"]
+        
+        Clamp_Min --> Check_State{"Score > Threshold?"}
+        
+        Check_State -- Yes --> State_Aiming["状态: 被瞄准中 <br/> Aiming = True"]
+        Check_State -- No --> State_Safe["状态: 安全 <br/> Aiming = False"]
+    end
+
+    subgraph Attack_Check ["攻击判定逻辑"]
+        Signal_Type{"收到的NEC码内容?"}
+        Signal_Type -- "Attack Code (按下)" --> Check_Aiming{"当前 Aiming == True?"}
+        Signal_Type -- "Aim Code (常态)" --> Ignore["仅维持积分"]
+        
+        Check_Aiming -- Yes --> Event_Hit["触发: 有效击中! <br/> 扣血 / 受伤动作"]
+        Check_Aiming -- No --> Event_Miss["忽略: 盲射/干扰"]
+    end
+
+    State_Aiming -.-> Signal_Type
+    
+    style State_Aiming fill:#fbbf24,stroke:#b45309
+    style Event_Hit fill:#ef4444,stroke:#991b1b,color:white
+    style Add_Score fill:#86efac,stroke:#166534
+    style Decr_Score fill:#fca5a5,stroke:#991b1b
+    style Init fill:#e0e7ff,stroke:#4338ca
+            `,
+            'fsm': `
+stateDiagram-v2
+    direction TB
+    
+    [*] --> Idle
+    note right of Idle: 开机/待机
+    
+    state "Idle (待机)" as Idle
+    state "Scanning (索敌)" as Scanning
+    
+    state "Chase Mode (追逐)" as Chase {
+        state "Greedy (直线加速)" as Chase_Greedy
+        state "ZigZag (蛇形走位)" as Chase_ZigZag
+        note right of Chase_Greedy: 视觉伺服 PID 控制
+        note right of Chase_ZigZag: 全向轮 Sin 波闪避
+        
+        [*] --> Chase_Greedy
+        Chase_Greedy --> Chase_ZigZag: 距离 < 2m
+        Chase_ZigZag --> Chase_Greedy: 距离 > 2.5m
+    }
+
+    state "Defense Mode (防御/盲操)" as Defense {
+        state "Spin_180 (转身)" as Spin
+        state "Butt_Wiggle (嘲讽/倒车)" as Blind_Move
+        state "Re_Acquire (回身索敌)" as Reset
+        note right of Blind_Move: IMU 锁航向 + 倒车
+        
+        [*] --> Spin
+        Spin --> Blind_Move: 完成180度
+        Blind_Move --> Reset: 计时结束(3s) 或 撞墙预警
+    }
+
+    state "Out_Of_Bounds (出界暂停)" as OutOfBounds {
+        state "Pause (原地停止)" as Pause
+        state "Invincible (无敌模式)" as Invincible
+        note right of Invincible: 忽略红外信号
+    }
+
+    state "Impact (受伤)" as Hurt {
+        state "Stunned (晕眩)" as Stunned
+        state "Rampage (暴走)" as Rampage
+        
+        [*] --> Stunned
+        Stunned --> Rampage: 3s无敌
+    }
+
+    state "Win (机器人胜)" as Win
+    state "Lose (玩家胜)" as Lose
+
+    %% 连接关系修正
+    Idle --> Scanning: 发现目标 (YOLO)
+    Scanning --> Chase: 目标锁定 & 距离 > 2m
+
+    Chase --> Defense: 距离 < 1m
+    Defense --> Chase: 重新发现目标
+    
+    %% 出界判定逻辑
+    Chase --> OutOfBounds: 墙壁距离<0.5m & 玩家>2m
+    Defense --> OutOfBounds: 墙壁距离<0.5m & 玩家>2m
+    OutOfBounds --> Idle: 玩家回到界内 (UWB变小)
+
+    Chase --> Win: UWB距离 < 0.5m
+    Defense --> Win: UWB距离 < 0.5m
+    
+    Chase --> Hurt: IR被击中
+    Defense --> Hurt: IR被击中
+    
+    Hurt --> Chase: 无敌结束
+    Hurt --> Lose: 血量 <= 0
+
+    Win --> [*]
+    Lose --> [*]
+            `
+        };
+
+        const titles = {
+            'hardware': '硬件拓扑结构图',
+            'software': 'ROS 2 软件架构图',
+            'algorithm': '红外瞄准优化算法 (Fast Response)',
+            'fsm': '游戏行为状态机'
+        };
+
+        let panzoomInstances = {};
+        let activeTab = 'hardware';
+        let editorVisible = false;
+        let aiVisible = false;
+        let debounceTimer = null;
+
+        mermaid.initialize({ 
+            startOnLoad: false,
+            theme: 'base',
+            flowchart: { curve: 'linear' }, 
+            maxTextSize: 999999,
+            themeVariables: {
+                fontFamily: 'Inter, sans-serif',
+                primaryColor: '#e0e7ff',
+                primaryTextColor: '#1e1b4b',
+                primaryBorderColor: '#4338ca',
+                lineColor: '#6366f1',
+                secondaryColor: '#fef3c7',
+                tertiaryColor: '#fff'
+            }
+        });
+
+        async function renderDiagram(id, codeOverride = null) {
+            const container = document.getElementById(id);
+            const code = codeOverride || diagrams[id];
+            const loading = document.getElementById('loading');
+            
+            if(!codeOverride) loading.style.opacity = '1';
+
+            try {
+                if (panzoomInstances[id]) {
+                     // Remove manual wheel listener
+                    container.parentElement.removeEventListener('wheel', panzoomInstances[id].zoomWithWheel);
+
+                    // Call library cleanup
+                    if (typeof panzoomInstances[id].destroy === 'function') {
+                        panzoomInstances[id].destroy();
+                    } else if (typeof panzoomInstances[id].dispose === 'function') {
+                        panzoomInstances[id].dispose();
+                    }
+                    
+                    delete panzoomInstances[id];
+                }
+                container.innerHTML = '';
+
+                const svgId = `mermaid-svg-${id}-${Date.now()}`;
+                const { svg } = await mermaid.render(svgId, code);
+                
+                container.innerHTML = svg;
+                
+                const svgElement = container.querySelector('svg');
+                if (svgElement) {
+                    svgElement.style.maxWidth = 'none';
+                    svgElement.style.height = 'auto';
+                    svgElement.setAttribute('height', '100%'); 
+
+                    const instance = Panzoom(container, {
+                        maxScale: 10,
+                        minScale: 0.1,
+                        contain: false,
+                        startScale: 1
+                    });
+                    
+                    container.parentElement.addEventListener('wheel', instance.zoomWithWheel);
+                    panzoomInstances[id] = instance;
+
+                    setTimeout(() => fitToScreen(id), 100);
+                }
+                
+                // 更新编辑器状态（如果存在）
+                if(document.getElementById('editor-status')) {
+                   document.getElementById('editor-status').textContent = '渲染成功 ' + new Date().toLocaleTimeString();
+                   document.getElementById('editor-status').className = 'text-green-600';
+                }
+
+            } catch (error) {
+                console.error("Mermaid Render Error:", error);
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full text-red-500 p-8">
+                        <i class="fas fa-exclamation-triangle text-3xl mb-2"></i>
+                        <p class="font-bold">渲染失败</p>
+                        <pre class="text-xs bg-red-50 p-2 mt-2 rounded border border-red-100 max-w-full overflow-auto">${error.message}</pre>
+                    </div>
+                `;
+            } finally {
+                loading.style.opacity = '0';
+            }
+        }
+
+        function fitToScreen(id) {
+            const instance = panzoomInstances[id];
+            const container = document.getElementById(id);
+            const svg = container.querySelector('svg');
+            if (!instance || !svg) return;
+
+            const containerRect = container.getBoundingClientRect();
+            let contentW, contentH;
+            try {
+                const bbox = svg.getBBox();
+                contentW = bbox.width || 1000;
+                contentH = bbox.height || 1000;
+            } catch(e) {
+                contentW = svg.viewBox?.baseVal?.width || 1000;
+                contentH = svg.viewBox?.baseVal?.height || 1000;
+            }
+            
+            const scaleX = (containerRect.width / contentW) * 0.85;
+            const scaleY = (containerRect.height / contentH) * 0.85;
+            const newScale = Math.min(scaleX, scaleY, 1.5); 
+            
+            instance.zoom(newScale, { animate: true });
+            const offsetX = (containerRect.width - contentW * newScale) / 2;
+            const offsetY = (containerRect.height - contentH * newScale) / 2;
+            instance.pan(offsetX, offsetY, { animate: true });
+            updateZoomLevel(id);
+        }
+
+        // 面板控制
+        const editorPanel = document.getElementById('editor-panel');
+        const aiPanel = document.getElementById('ai-panel');
+        const codeEditor = document.getElementById('code-editor');
+        const btnEditToggle = document.getElementById('btn-edit-toggle');
+        const btnAiToggle = document.getElementById('btn-ai-toggle');
+
+        function toggleEditor() {
+            editorVisible = !editorVisible;
+            if (editorVisible) {
+                // 关闭AI面板
+                if(aiVisible) toggleAI();
+                
+                editorPanel.classList.remove('panel-hidden');
+                btnEditToggle.classList.add('bg-indigo-50', 'border-indigo-500', 'text-indigo-600');
+                codeEditor.value = diagrams[activeTab];
+            } else {
+                editorPanel.classList.add('panel-hidden');
+                btnEditToggle.classList.remove('bg-indigo-50', 'border-indigo-500', 'text-indigo-600');
+            }
+        }
+
+        function toggleAI() {
+            aiVisible = !aiVisible;
+            if (aiVisible) {
+                // 关闭编辑器
+                if(editorVisible) toggleEditor();
+
+                aiPanel.classList.remove('panel-hidden');
+                btnAiToggle.classList.add('ring-2', 'ring-offset-1', 'ring-violet-500');
+            } else {
+                aiPanel.classList.add('panel-hidden');
+                btnAiToggle.classList.remove('ring-2', 'ring-offset-1', 'ring-violet-500');
+            }
+        }
+
+        // 编辑器事件
+        codeEditor.addEventListener('input', (e) => {
+            const newCode = e.target.value;
+            diagrams[activeTab] = newCode;
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => { renderDiagram(activeTab, newCode); }, 800);
+        });
+
+        // Gemini AI 逻辑
+        async function callGemini(prompt, includeContext = true) {
+            const chatHistory = document.getElementById('chat-history');
+            const btnSend = document.getElementById('btn-send');
+            const inputField = document.getElementById('ai-input');
+            
+            // UI: 添加用户消息
+            appendMessage('user', prompt);
+            
+            // 锁定输入
+            btnSend.disabled = true;
+            inputField.value = '';
+            
+            // UI: 添加思考中动画
+            const loadingId = appendLoading();
+            scrollToBottom();
+
+            // 构建 Prompt
+            let finalPrompt = `你是一个专业的机器人软件架构师，正在协助用户设计一个名为 "iGarden" 的庭院机器人。
+当前正在查看的图表是：${titles[activeTab]}。
+`;
+            if (includeContext) {
+                finalPrompt += `
+当前的 Mermaid 源码如下：
+\`\`\`mermaid
+${diagrams[activeTab]}
+\`\`\`
+请根据以上代码回答用户的问题。如果用户要求修改或生成代码，请只返回 Markdown 格式的 Mermaid 代码块。
+用户的需求是：${prompt}`;
+            } else {
+                finalPrompt += `用户的需求是：${prompt}`;
+            }
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: finalPrompt }] }]
+                    })
+                });
+
+                const data = await response.json();
+                const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "抱歉，我好像断线了，请重试。";
+                
+                // 移除 loading
+                document.getElementById(loadingId).remove();
+                
+                // UI: 显示 AI 回复
+                appendMessage('ai', aiText);
+
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                document.getElementById(loadingId).remove();
+                appendMessage('ai', "网络连接出错，请检查 API Key 或网络设置。");
+            } finally {
+                btnSend.disabled = false;
+                scrollToBottom();
+            }
+        }
+
+        function appendMessage(role, text) {
+            const chatHistory = document.getElementById('chat-history');
+            const div = document.createElement('div');
+            div.className = `chat-bubble chat-${role}`;
+            
+            // 检查是否有 Mermaid 代码块
+            const codeBlockRegex = /```mermaid([\s\S]*?)```/g;
+            const match = codeBlockRegex.exec(text);
+            
+            if (match) {
+                const code = match[1].trim();
+                // 渲染 Markdown 文本部分 (移除代码块后)
+                const cleanText = text.replace(codeBlockRegex, '');
+                div.innerHTML = marked.parse(cleanText);
+                
+                // 添加代码预览和应用按钮
+                const codePreview = document.createElement('div');
+                codePreview.className = "mt-2 bg-slate-800 rounded-lg p-3";
+                codePreview.innerHTML = `
+                    <div class="flex justify-between items-center mb-2 text-xs text-slate-400">
+                        <span><i class="fas fa-code"></i> 生成的代码</span>
+                        <button onclick="applyCodeFromAI(this)" class="px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-500 transition">
+                            <i class="fas fa-check"></i> 应用到画布
+                        </button>
+                    </div>
+                    <pre class="text-xs text-emerald-300 font-mono overflow-x-auto custom-scrollbar">${escapeHtml(code)}</pre>
+                    <textarea class="hidden code-storage">${code}</textarea>
+                `;
+                div.appendChild(codePreview);
+            } else {
+                div.innerHTML = marked.parse(text);
+            }
+            
+            chatHistory.appendChild(div);
+        }
+
+        function appendLoading() {
+            const chatHistory = document.getElementById('chat-history');
+            const id = 'loading-' + Date.now();
+            const div = document.createElement('div');
+            div.id = id;
+            div.className = `chat-bubble chat-ai`;
+            div.innerHTML = `<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>`;
+            chatHistory.appendChild(div);
+            return id;
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('ai-input');
+            const text = input.value.trim();
+            if (text) callGemini(text);
+        }
+
+        function sendQuickAction(type) {
+            if (type === 'explain') {
+                callGemini("请像资深架构师一样，简明扼要地解读当前这张架构图的设计逻辑和数据流向。");
+            } else if (type === 'optimize') {
+                callGemini("请分析当前的 Mermaid 代码，在保持逻辑不变的前提下，优化布局方向或节点分组，使其看起来更清晰专业。请直接返回优化后的 Mermaid 代码。");
+            }
+        }
+
+        function handleInputKey(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function applyCodeFromAI(btn) {
+            const code = btn.parentElement.parentElement.querySelector('.code-storage').value;
+            diagrams[activeTab] = code;
+            renderDiagram(activeTab);
+            
+            // 如果编辑器开着，也更新编辑器
+            if(editorVisible) {
+                document.getElementById('code-editor').value = code;
+            }
+            
+            // 反馈动画
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i class="fas fa-check-circle"></i> 已应用`;
+            btn.classList.replace('bg-emerald-600', 'bg-slate-600');
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.classList.replace('bg-slate-600', 'bg-emerald-600');
+            }, 2000);
+        }
+
+        function scrollToBottom() {
+            const chatHistory = document.getElementById('chat-history');
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        // Tab 切换逻辑
+        async function switchTab(tabId) {
+            document.querySelectorAll('.nav-item').forEach(btn => {
+                btn.classList.remove('bg-slate-800', 'border-indigo-500', 'text-white');
+                btn.classList.add('text-slate-400', 'border-transparent');
+            });
+            document.getElementById(`btn-${tabId}`).classList.add('bg-slate-800', 'border-indigo-500', 'text-white');
+            document.getElementById(`btn-${tabId}`).classList.remove('text-slate-400', 'border-transparent');
+            document.getElementById('header-title').textContent = titles[tabId];
+            
+            Object.keys(diagrams).forEach(key => {
+                document.getElementById(key).classList.add('hidden');
+            });
+            document.getElementById(tabId).classList.remove('hidden');
+            
+            activeTab = tabId;
+
+            if (editorVisible) codeEditor.value = diagrams[activeTab];
+
+            if (!panzoomInstances[tabId]) {
+                await renderDiagram(tabId);
+            } else {
+                updateZoomLevel(tabId);
+            }
+        }
+
+        function zoomIn() { panzoomInstances[activeTab]?.zoomIn(); updateZoomLevel(activeTab); }
+        function zoomOut() { panzoomInstances[activeTab]?.zoomOut(); updateZoomLevel(activeTab); }
+        function resetView() { fitToScreen(activeTab); }
+        function updateZoomLevel(id) {
+            const scale = panzoomInstances[id]?.getScale();
+            if(scale) document.getElementById('zoom-level').textContent = Math.round(scale * 100) + '%';
+        }
+
+        window.addEventListener('load', () => switchTab('hardware'));
+        window.addEventListener('resize', () => fitToScreen(activeTab));
+    </script>
+</body>
+</html>
