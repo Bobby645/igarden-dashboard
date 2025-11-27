@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iGarden 迪士尼 - 智能架构看板 v2.2</title>
+    <title>iGarden 迪士尼 - 智能架构看板 v2.5</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Mermaid.js -->
@@ -35,14 +35,24 @@
             overflow: visible; 
             display: flex;
             align-items: flex-start;
-            justify-content: flex-start;
+            justify-content: center; /* 居中显示 */
             position: relative;
+            padding: 40px; /* 给边缘留白 */
+        }
+
+        /* 确保内容不被截断 */
+        .content-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 40px;
+            width: auto;
+            height: auto;
         }
 
         .diagram-container svg {
             max-width: none !important; 
             height: auto !important;
-            min-height: 100%;
             overflow: visible !important;
         }
 
@@ -115,7 +125,7 @@
                 <i class="fas fa-robot"></i>
                 iGarden 迪士尼
             </h1>
-            <p class="text-xs text-indigo-200 mt-1">架构看板 v2.2 (Logic Upd)</p>
+            <p class="text-xs text-indigo-200 mt-1">架构看板 v2.5 (Visual Map)</p>
             <p class="text-xs text-indigo-300 mt-2 flex items-center gap-1">
                 <i class="fas fa-user-edit"></i> 作者：韦翔斌
             </p>
@@ -129,6 +139,10 @@
             <button onclick="switchTab('software')" id="btn-software" class="nav-item w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors border-l-4 border-transparent flex items-center gap-3">
                 <i class="fas fa-network-wired w-5 text-center"></i>
                 <span>ROS 2 软件架构</span>
+            </button>
+            <button onclick="switchTab('localization')" id="btn-localization" class="nav-item w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors border-l-4 border-transparent flex items-center gap-3">
+                <i class="fas fa-map-marked-alt w-5 text-center"></i>
+                <span>定位与场地示意</span>
             </button>
             <button onclick="switchTab('algorithm')" id="btn-algorithm" class="nav-item w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors border-l-4 border-transparent flex items-center gap-3">
                 <i class="fas fa-code-branch w-5 text-center"></i>
@@ -156,7 +170,6 @@
                 硬件拓扑结构图
             </div>
             <div class="flex items-center gap-3">
-                
                 <!-- 缩放控制 -->
                 <div class="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
                     <button onclick="zoomOut()" class="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-white rounded transition">
@@ -167,15 +180,12 @@
                         <i class="fas fa-plus text-xs"></i>
                     </button>
                 </div>
-
                 <div class="w-px h-6 bg-slate-300"></div>
-
                 <!-- 编辑器开关 -->
                 <button onclick="toggleEditor()" id="btn-edit-toggle" class="flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 hover:border-indigo-500 hover:text-indigo-600 text-slate-700 rounded-lg transition shadow-sm text-sm">
                     <i class="fas fa-edit"></i>
                     <span class="hidden sm:inline">源码</span>
                 </button>
-
                 <!-- AI 助手开关 -->
                 <button onclick="toggleAI()" id="btn-ai-toggle" class="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600 text-white rounded-lg transition shadow-sm text-sm font-medium">
                     <i class="fas fa-sparkles"></i>
@@ -188,6 +198,7 @@
         <div class="flex-1 relative overflow-hidden canvas-bg cursor-move" id="canvas-wrapper">
             <div id="hardware" class="diagram-container"></div>
             <div id="software" class="diagram-container hidden"></div>
+            <div id="localization" class="diagram-container hidden"></div>
             <div id="algorithm" class="diagram-container hidden"></div>
             <div id="fsm" class="diagram-container hidden"></div>
             
@@ -224,10 +235,8 @@
                 </h3>
                 <button onclick="toggleAI()" class="hover:bg-white/20 rounded p-1 transition"><i class="fas fa-times"></i></button>
             </div>
-            
             <!-- 聊天记录区域 -->
             <div id="chat-history" class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
-                <!-- 欢迎语 -->
                 <div class="chat-bubble chat-ai flex flex-col gap-2">
                     <p>👋 你好！我是您的 iGarden 机器人架构助手。</p>
                     <p>我可以帮您：</p>
@@ -238,7 +247,6 @@
                     </ul>
                 </div>
             </div>
-
             <!-- 快捷指令 -->
             <div class="px-4 py-2 bg-white border-t border-slate-100 flex gap-2 overflow-x-auto no-scrollbar shrink-0">
                 <button onclick="sendQuickAction('explain')" class="whitespace-nowrap px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs rounded-full hover:bg-indigo-100 transition border border-indigo-100">
@@ -248,11 +256,10 @@
                     <i class="fas fa-magic mr-1"></i> 优化布局
                 </button>
             </div>
-
             <!-- 输入区域 -->
             <div class="p-4 bg-white border-t border-slate-200 shrink-0">
                 <div class="relative">
-                    <textarea id="ai-input" rows="1" class="w-full pl-4 pr-12 py-3 bg-slate-100 border-0 rounded-xl focus:ring-2 focus:ring-violet-500 focus:bg-white resize-none text-sm transition" placeholder="输入需求，例如：'添加一个低电量返航的状态'..." onkeydown="handleInputKey(event)"></textarea>
+                    <textarea id="ai-input" rows="1" class="w-full pl-4 pr-12 py-3 bg-slate-100 border-0 rounded-xl focus:ring-2 focus:ring-violet-500 focus:bg-white resize-none text-sm transition" placeholder="输入需求..." onkeydown="handleInputKey(event)"></textarea>
                     <button onclick="sendMessage()" id="btn-send" class="absolute right-2 bottom-2 p-1.5 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                         <i class="fas fa-paper-plane text-xs"></i>
                     </button>
@@ -372,12 +379,13 @@ graph TD
     %% -------------------
     subgraph Perception_Layer ["感知与算法层 (Perception Layer)"]
         Node_YOLO["🧠 YOLO 视觉节点<br/>(RKNN / 人体检测)"]:::ai
-        Node_AprilTag["🚩 AprilTag/蓝牙/UWB节点<br/>(电子围栏检测)"]:::ai
+        Node_AprilTag["🚩 AprilTag 节点<br/>(视觉边界检测)"]:::ai
+        Node_VIO["👁️ ORB-SLAM3 (VIO)<br/>(视觉+IMU里程计)"]:::ai
         
         %% 新增：目标筛选逻辑
         Node_Gating["🎯 目标筛选 (Target Gating)<br/>(Vis Dist vs UWB Dist)"]:::ai
         
-        Node_Fusion["📍 状态估计/融合<br/>(Visual + UWB + Odom)"]:::ai
+        Node_Fusion["📍 多传感器融合<br/>(EKF: UWB+VIO+Odom)"]:::ai
         Node_IR_Filter["🛡️ 红外判定节点<br/>(漏桶算法 Leaky Bucket)"]:::ai
     end
 
@@ -405,16 +413,19 @@ graph TD
     %% 连线关系：硬件 -> 驱动
     HW_Cam ==> Node_Cam
     HW_UWB ==> Node_UWB
-    HW_STM32 <==>|""| Node_Bridge
+    HW_STM32 <==> Node_Bridge
 
     %% 连线关系：驱动 -> 感知
     Node_Cam -->|Image Raw| Node_YOLO
     Node_Cam -->|Image Raw| Node_AprilTag
+    Node_Cam -->|Image Raw| Node_VIO
     Node_UWB -->|距离数据 D_uwb| Node_Gating
     Node_Bridge -->|里程计 & IMU| Node_Fusion
+    Node_Bridge -->|IMU Raw| Node_VIO
     Node_Bridge -->|"红外解码事件/RAW"| Node_IR_Filter
 
     %% 连线关系：感知内部流转
+    Node_VIO -->|Pose Change| Node_Fusion
     Node_YOLO -->|"所有检测框 D_vis"| Node_Gating
     Node_Gating -->|"锁定目标 ID"| Node_Fusion
     
@@ -437,7 +448,48 @@ graph TD
     Logic_Game -->|"血量/灯效指令"| Node_Bridge
     Logic_Game -->|"表情状态"| Node_UI
     Logic_Game -->|"音效触发"| Node_Audio
+            `,
+            'localization': `
+graph TD
+    %% Styling
+    classDef input fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef process fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
+    classDef core fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px;
+    classDef output fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
 
+    subgraph Inputs ["1. 传感器原始数据 (Raw Inputs)"]
+        IMU["IMU (加速度/角速度)<br/>200Hz"]:::input
+        Odom["轮式里程计 (Ticks)<br/>100Hz"]:::input
+        UWB["UWB 测距 (Range)<br/>10Hz"]:::input
+        Vis["视觉位姿 (Visual Pose)<br/>15Hz"]:::input
+    end
+
+    subgraph Preprocess ["2. 数据预处理 (Pre-processing)"]
+        TimeSync["时间戳同步 & 对齐"]:::process
+        Outlier["UWB 异常值剔除<br/>(卡方检验/马氏距离)"]:::process
+        OdomCalib["里程计运动学解算"]:::process
+    end
+
+    subgraph EKF_Core ["3. EKF 状态估计 (State Estimation)"]
+        direction TB
+        Predict["预测 (Prediction)<br/>x = f(x, u) <br/> P = FPF' + Q"]:::core
+        Update["更新 (Correction)<br/>K = PH'(HPH' + R)^-1 <br/> x = x + K(z - h(x))"]:::core
+    end
+
+    subgraph Result ["4. 输出 (Output)"]
+        FusedPose["📍 融合后位姿 (x, y, yaw)"]:::output
+        Uncertainty["📉 协方差 (置信度)"]:::output
+    end
+
+    %% Flow
+    IMU & Odom --> OdomCalib --> TimeSync
+    UWB & Vis --> Outlier --> TimeSync
+    
+    TimeSync --> Predict
+    Predict -->|先验估计| Update
+    Update -->|后验估计| Predict
+    
+    Update --> FusedPose & Uncertainty
             `,
             'algorithm': `
 graph TD
@@ -482,44 +534,37 @@ graph TD
 stateDiagram-v2
     direction TB
     
-    [*] --> Idle
-    note right of Idle: 开机/待机
-    
     state "Idle (待机)" as Idle
     state "Scanning (索敌)" as Scanning
     
     state "Chase Mode (追逐)" as Chase {
+        direction TB
+        [*] --> Chase_Greedy
         state "Greedy (直线加速)" as Chase_Greedy
         state "ZigZag (蛇形走位)" as Chase_ZigZag
-        note right of Chase_Greedy: 视觉伺服 PID 控制
-        note right of Chase_ZigZag: 全向轮 Sin 波闪避
-        
-        [*] --> Chase_Greedy
         Chase_Greedy --> Chase_ZigZag: 距离 < 2m
         Chase_ZigZag --> Chase_Greedy: 距离 > 2.5m
     }
 
     state "Defense Mode (防御/盲操)" as Defense {
+        direction TB
+        [*] --> Spin
         state "Spin_180 (转身)" as Spin
         state "Butt_Wiggle (嘲讽/倒车)" as Blind_Move
         state "Re_Acquire (回身索敌)" as Reset
-        note right of Blind_Move: IMU 锁航向 + 倒车
         
-        [*] --> Spin
         Spin --> Blind_Move: 完成180度
-        Blind_Move --> Reset: 计时结束(3s) 或 撞墙预警
+        Blind_Move --> Reset: 计时结束(3s)
     }
 
     state "Out_Of_Bounds (出界暂停)" as OutOfBounds {
         state "Pause (原地停止)" as Pause
         state "Invincible (无敌模式)" as Invincible
-        note right of Invincible: 忽略红外信号
     }
 
     state "Impact (受伤)" as Hurt {
         state "Stunned (晕眩)" as Stunned
         state "Rampage (暴走)" as Rampage
-        
         [*] --> Stunned
         Stunned --> Rampage: 3s无敌
     }
@@ -527,35 +572,131 @@ stateDiagram-v2
     state "Win (机器人胜)" as Win
     state "Lose (玩家胜)" as Lose
 
-    %% 连接关系修正
-    Idle --> Scanning: 发现目标 (YOLO)
-    Scanning --> Chase: 目标锁定 & 距离 > 2m
+    [*] --> Idle
+    Idle --> Scanning: 发现目标
+    Scanning --> Chase: 锁定
 
-    Chase --> Defense: 距离 < 1m
-    Defense --> Chase: 重新发现目标
-    
-    %% 出界判定逻辑
-    Chase --> OutOfBounds: 墙壁距离<0.5m & 玩家>2m
-    Defense --> OutOfBounds: 墙壁距离<0.5m & 玩家>2m
-    OutOfBounds --> Idle: 玩家回到界内 (UWB变小)
+    %% 核心循环
+    Chase --> Defense: 距离<1m
+    Defense --> Chase: 重新发现
 
-    Chase --> Win: UWB距离 < 0.5m
-    Defense --> Win: UWB距离 < 0.5m
-    
-    Chase --> Hurt: IR被击中
-    Defense --> Hurt: IR被击中
-    
+    %% 异常状态
+    Chase --> OutOfBounds: 逼至死角
+    Defense --> OutOfBounds: 逼至死角
+    OutOfBounds --> Idle: 玩家回界内
+
+    %% 战斗结算
+    Chase --> Hurt: 被击中
+    Defense --> Hurt: 被击中
     Hurt --> Chase: 无敌结束
-    Hurt --> Lose: 血量 <= 0
+    
+    %% 终局
+    Chase --> Win: 抓到
+    Defense --> Win: 抓到
+    Hurt --> Lose: 血量归零
 
     Win --> [*]
     Lose --> [*]
             `
         };
 
+        // -------------------------
+        // SVG 场地示意图 (作为字符串模板)
+        // -------------------------
+        const fieldMapSVG = `
+        <div style="background:white; padding:20px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.1); width:100%; max-width:800px;">
+            <h3 class="text-center font-bold text-lg mb-4 text-slate-700">🏟️ 庭院场地与信标布局示意 (Field Topology)</h3>
+            <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto; background:#f0fdf4; border:2px solid #86efac; border-radius:8px;">
+                <!-- 1. 草地背景与网格 -->
+                <defs>
+                    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#dcfce7" stroke-width="1"/>
+                    </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#grid)" />
+                
+                <!-- 2. 安全边界 (虚拟围栏) -->
+                <rect x="50" y="50" width="700" height="400" rx="20" fill="none" stroke="#ef4444" stroke-width="3" stroke-dasharray="10,5" opacity="0.6"/>
+                <text x="60" y="80" fill="#ef4444" font-size="14" font-weight="bold">🚫 视觉/UWB 电子围栏边界</text>
+
+                <!-- 3. 四角信标 (Beacons) -->
+                <!-- Top-Left: B1 (UWB+BLE) -->
+                <g transform="translate(50, 50)">
+                    <circle r="20" fill="#fbbf24" stroke="#d97706" stroke-width="3"/>
+                    <text x="0" y="5" text-anchor="middle" font-size="16">🚩</text>
+                    <text x="-30" y="-25" font-size="12" fill="#92400e" font-weight="bold">B1 (UWB+BLE)</text>
+                    <circle r="120" fill="none" stroke="#fbbf24" stroke-width="1" opacity="0.3">
+                        <animate attributeName="r" from="20" to="120" dur="2s" repeatCount="indefinite"/>
+                        <animate attributeName="opacity" from="0.6" to="0" dur="2s" repeatCount="indefinite"/>
+                    </circle>
+                </g>
+
+                <!-- Top-Right: B2 (UWB+BLE) -->
+                <g transform="translate(750, 50)">
+                    <circle r="20" fill="#fbbf24" stroke="#d97706" stroke-width="3"/>
+                    <text x="0" y="5" text-anchor="middle" font-size="16">🚩</text>
+                    <text x="-30" y="-25" font-size="12" fill="#92400e" font-weight="bold">B2 (UWB+BLE)</text>
+                </g>
+
+                <!-- Bottom-Left: B3 (UWB+BLE) -->
+                <g transform="translate(50, 450)">
+                    <circle r="20" fill="#fbbf24" stroke="#d97706" stroke-width="3"/>
+                    <text x="0" y="5" text-anchor="middle" font-size="16">🚩</text>
+                    <text x="-30" y="35" font-size="12" fill="#92400e" font-weight="bold">B3 (UWB+BLE)</text>
+                </g>
+
+                <!-- Bottom-Right: B4 (BLE Only - Weak) -->
+                <g transform="translate(750, 450)">
+                    <circle r="20" fill="#e2e8f0" stroke="#64748b" stroke-width="3"/>
+                    <text x="0" y="5" text-anchor="middle" font-size="16">🏳️</text>
+                    <text x="-30" y="35" font-size="12" fill="#475569" font-weight="bold">B4 (BLE Only)</text>
+                </g>
+
+                <!-- 4. 机器人与玩家 -->
+                <!-- Robot -->
+                <g transform="translate(300, 250) rotate(20)">
+                    <!-- 视野扇形 -->
+                    <path d="M 0 0 L 150 -60 A 160 160 0 0 1 150 60 Z" fill="#60a5fa" opacity="0.2"/>
+                    <circle r="25" fill="#3b82f6" stroke="#1e40af" stroke-width="3"/>
+                    <text x="0" y="8" text-anchor="middle" font-size="20">🤖</text>
+                    <line x1="0" y1="0" x2="40" y2="0" stroke="#1e40af" stroke-width="3" marker-end="url(#arrow)"/>
+                    <text x="-20" y="45" font-size="12" fill="#1e40af" font-weight="bold">Robot (VIO+UWB)</text>
+                </g>
+
+                <!-- Player -->
+                <g transform="translate(500, 200)">
+                    <circle r="20" fill="#f87171" stroke="#b91c1c" stroke-width="3"/>
+                    <text x="0" y="8" text-anchor="middle" font-size="20">🎮</text>
+                    <text x="-20" y="40" font-size="12" fill="#b91c1c" font-weight="bold">Player (UWB Tag)</text>
+                    
+                    <!-- UWB Link Line -->
+                    <line x1="-180" y1="40" x2="0" y2="0" stroke="#f59e0b" stroke-width="2" stroke-dasharray="5,5" opacity="0.8"/>
+                    <text x="-100" y="15" fill="#d97706" font-size="11" font-weight="bold">UWB: 1.8m</text>
+                </g>
+
+                <!-- 5. 坐标系说明 -->
+                <g transform="translate(40, 460)">
+                    <line x1="0" y1="0" x2="40" y2="0" stroke="black" stroke-width="2"/>
+                    <line x1="0" y1="0" x2="0" y2="-40" stroke="black" stroke-width="2"/>
+                    <text x="45" y="5" font-size="10">X</text>
+                    <text x="-5" y="-45" font-size="10">Y</text>
+                    <text x="5" y="-5" font-size="10">O</text>
+                </g>
+            </svg>
+            <p class="text-xs text-slate-500 mt-2 text-center">
+                <i class="fas fa-info-circle"></i> 图示说明: 
+                <span class="inline-block w-3 h-3 bg-yellow-400 rounded-full mx-1"></span>UWB信标 
+                <span class="inline-block w-3 h-3 bg-slate-200 rounded-full mx-1"></span>纯蓝牙信标 
+                <span class="inline-block w-3 h-3 bg-blue-500 rounded-full mx-1"></span>机器人 
+                <span class="inline-block w-3 h-3 bg-red-400 rounded-full mx-1"></span>玩家
+            </p>
+        </div>
+        `;
+
         const titles = {
             'hardware': '硬件拓扑结构图',
             'software': 'ROS 2 软件架构图',
+            'localization': '定位与场地示意 (Localization & Field)',
             'algorithm': '红外瞄准优化算法 (Fast Response)',
             'fsm': '游戏行为状态机'
         };
@@ -591,30 +732,50 @@ stateDiagram-v2
 
             try {
                 if (panzoomInstances[id]) {
-                     // Remove manual wheel listener
-                    container.parentElement.removeEventListener('wheel', panzoomInstances[id].zoomWithWheel);
-
-                    // Call library cleanup
+                     container.parentElement.removeEventListener('wheel', panzoomInstances[id].zoomWithWheel);
                     if (typeof panzoomInstances[id].destroy === 'function') {
                         panzoomInstances[id].destroy();
                     } else if (typeof panzoomInstances[id].dispose === 'function') {
                         panzoomInstances[id].dispose();
                     }
-                    
                     delete panzoomInstances[id];
                 }
+                
+                // Clear container
                 container.innerHTML = '';
 
-                const svgId = `mermaid-svg-${id}-${Date.now()}`;
-                const { svg } = await mermaid.render(svgId, code);
+                // Special handling for 'localization' tab to include SVG Map + Mermaid
+                if (id === 'localization' && !codeOverride) {
+                    const wrapperDiv = document.createElement('div');
+                    wrapperDiv.className = 'content-wrapper';
+                    wrapperDiv.innerHTML = fieldMapSVG; // Inject SVG Map
+                    
+                    const mermaidDiv = document.createElement('div');
+                    mermaidDiv.style.width = '100%';
+                    const svgId = `mermaid-svg-${id}-${Date.now()}`;
+                    const { svg } = await mermaid.render(svgId, code);
+                    mermaidDiv.innerHTML = svg;
+                    
+                    wrapperDiv.appendChild(mermaidDiv);
+                    container.appendChild(wrapperDiv);
+                } else {
+                    // Standard Mermaid rendering
+                    const svgId = `mermaid-svg-${id}-${Date.now()}`;
+                    const { svg } = await mermaid.render(svgId, code);
+                    container.innerHTML = svg;
+                }
                 
-                container.innerHTML = svg;
+                // Setup Panzoom
+                // Note: For localization, we zoom the whole container which includes Map + Chart
+                const targetElement = (id === 'localization') ? container.querySelector('.content-wrapper') : container.querySelector('svg');
                 
-                const svgElement = container.querySelector('svg');
-                if (svgElement) {
-                    svgElement.style.maxWidth = 'none';
-                    svgElement.style.height = 'auto';
-                    svgElement.setAttribute('height', '100%'); 
+                if (targetElement) {
+                    // Ensure scaling works
+                    if(targetElement.tagName === 'svg') {
+                        targetElement.style.maxWidth = 'none';
+                        targetElement.style.height = 'auto';
+                        targetElement.setAttribute('height', '100%'); 
+                    }
 
                     const instance = Panzoom(container, {
                         maxScale: 10,
@@ -626,10 +787,10 @@ stateDiagram-v2
                     container.parentElement.addEventListener('wheel', instance.zoomWithWheel);
                     panzoomInstances[id] = instance;
 
+                    // Delay fit slightly
                     setTimeout(() => fitToScreen(id), 100);
                 }
                 
-                // 更新编辑器状态（如果存在）
                 if(document.getElementById('editor-status')) {
                    document.getElementById('editor-status').textContent = '渲染成功 ' + new Date().toLocaleTimeString();
                    document.getElementById('editor-status').className = 'text-green-600';
@@ -652,18 +813,27 @@ stateDiagram-v2
         function fitToScreen(id) {
             const instance = panzoomInstances[id];
             const container = document.getElementById(id);
-            const svg = container.querySelector('svg');
-            if (!instance || !svg) return;
+            if (!instance) return;
+
+            // Target could be SVG or Div Wrapper
+            const target = (id === 'localization') ? container.querySelector('.content-wrapper') : container.querySelector('svg');
+            if (!target) return;
 
             const containerRect = container.getBoundingClientRect();
             let contentW, contentH;
-            try {
-                const bbox = svg.getBBox();
-                contentW = bbox.width || 1000;
-                contentH = bbox.height || 1000;
-            } catch(e) {
-                contentW = svg.viewBox?.baseVal?.width || 1000;
-                contentH = svg.viewBox?.baseVal?.height || 1000;
+            
+            if (id === 'localization') {
+                contentW = target.scrollWidth || 1000;
+                contentH = target.scrollHeight || 1000;
+            } else {
+                try {
+                    const bbox = target.getBBox();
+                    contentW = bbox.width || 1000;
+                    contentH = bbox.height || 1000;
+                } catch(e) {
+                    contentW = target.viewBox?.baseVal?.width || 1000;
+                    contentH = target.viewBox?.baseVal?.height || 1000;
+                }
             }
             
             const scaleX = (containerRect.width / contentW) * 0.85;
@@ -671,8 +841,11 @@ stateDiagram-v2
             const newScale = Math.min(scaleX, scaleY, 1.5); 
             
             instance.zoom(newScale, { animate: true });
+            
+            // Calculate center offset
             const offsetX = (containerRect.width - contentW * newScale) / 2;
             const offsetY = (containerRect.height - contentH * newScale) / 2;
+            
             instance.pan(offsetX, offsetY, { animate: true });
             updateZoomLevel(id);
         }
@@ -687,9 +860,7 @@ stateDiagram-v2
         function toggleEditor() {
             editorVisible = !editorVisible;
             if (editorVisible) {
-                // 关闭AI面板
                 if(aiVisible) toggleAI();
-                
                 editorPanel.classList.remove('panel-hidden');
                 btnEditToggle.classList.add('bg-indigo-50', 'border-indigo-500', 'text-indigo-600');
                 codeEditor.value = diagrams[activeTab];
@@ -702,9 +873,7 @@ stateDiagram-v2
         function toggleAI() {
             aiVisible = !aiVisible;
             if (aiVisible) {
-                // 关闭编辑器
                 if(editorVisible) toggleEditor();
-
                 aiPanel.classList.remove('panel-hidden');
                 btnAiToggle.classList.add('ring-2', 'ring-offset-1', 'ring-violet-500');
             } else {
@@ -727,18 +896,14 @@ stateDiagram-v2
             const btnSend = document.getElementById('btn-send');
             const inputField = document.getElementById('ai-input');
             
-            // UI: 添加用户消息
             appendMessage('user', prompt);
             
-            // 锁定输入
             btnSend.disabled = true;
             inputField.value = '';
             
-            // UI: 添加思考中动画
             const loadingId = appendLoading();
             scrollToBottom();
 
-            // 构建 Prompt
             let finalPrompt = `你是一个专业的机器人软件架构师，正在协助用户设计一个名为 "iGarden" 的庭院机器人。
 当前正在查看的图表是：${titles[activeTab]}。
 `;
@@ -766,10 +931,7 @@ ${diagrams[activeTab]}
                 const data = await response.json();
                 const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "抱歉，我好像断线了，请重试。";
                 
-                // 移除 loading
                 document.getElementById(loadingId).remove();
-                
-                // UI: 显示 AI 回复
                 appendMessage('ai', aiText);
 
             } catch (error) {
@@ -787,17 +949,14 @@ ${diagrams[activeTab]}
             const div = document.createElement('div');
             div.className = `chat-bubble chat-${role}`;
             
-            // 检查是否有 Mermaid 代码块
             const codeBlockRegex = /```mermaid([\s\S]*?)```/g;
             const match = codeBlockRegex.exec(text);
             
             if (match) {
                 const code = match[1].trim();
-                // 渲染 Markdown 文本部分 (移除代码块后)
                 const cleanText = text.replace(codeBlockRegex, '');
                 div.innerHTML = marked.parse(cleanText);
                 
-                // 添加代码预览和应用按钮
                 const codePreview = document.createElement('div');
                 codePreview.className = "mt-2 bg-slate-800 rounded-lg p-3";
                 codePreview.innerHTML = `
@@ -855,12 +1014,10 @@ ${diagrams[activeTab]}
             diagrams[activeTab] = code;
             renderDiagram(activeTab);
             
-            // 如果编辑器开着，也更新编辑器
             if(editorVisible) {
                 document.getElementById('code-editor').value = code;
             }
             
-            // 反馈动画
             const originalText = btn.innerHTML;
             btn.innerHTML = `<i class="fas fa-check-circle"></i> 已应用`;
             btn.classList.replace('bg-emerald-600', 'bg-slate-600');
