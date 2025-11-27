@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iGarden 迪士尼 - 智能架构看板 v2.5</title>
+    <title>iGarden 迪士尼 - 智能架构看板 v2.6.2</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Mermaid.js -->
@@ -125,7 +125,7 @@
                 <i class="fas fa-robot"></i>
                 iGarden 迪士尼
             </h1>
-            <p class="text-xs text-indigo-200 mt-1">架构看板 v2.5 (Visual Map)</p>
+            <p class="text-xs text-indigo-200 mt-1">架构看板 v2.6.2 (Fix)</p>
             <p class="text-xs text-indigo-300 mt-2 flex items-center gap-1">
                 <i class="fas fa-user-edit"></i> 作者：韦翔斌
             </p>
@@ -316,6 +316,9 @@ graph TD
             Servo_Lift["升降机构舵机/推杆"]
             LED_Strip["RGB 血条灯带"]
             Motors["全向轮电机 M1-M3/M4"]
+            
+            %% 新增: 超声波避障
+            Sensor_Ultra["超声波雷达 x3 <br/> (Left/Center/Right)"]
         end
 
         %% 连接关系
@@ -336,6 +339,7 @@ graph TD
         STM32 -->|PWM| Motor_Dr
         STM32 -->|PWM| Servo_Lift
         STM32 -->|GPIO| LED_Strip
+        STM32 <-->|GPIO| Sensor_Ultra
         Motor_Dr --> Motors
     end
 
@@ -345,6 +349,7 @@ graph TD
 
     style RK3588 fill:#e0e7ff,stroke:#4338ca,stroke-width:2px
     style STM32 fill:#dbeafe,stroke:#2563eb,stroke-width:2px
+    style Sensor_Ultra fill:#fef3c7,stroke:#d97706
             `,
             'software': `
 graph TD
@@ -362,9 +367,11 @@ graph TD
         HW_UWB([UWB 模组])
         HW_STM32([STM32 下位机])
         HW_IR_Sensor([红外接收管])
+        HW_Ultra([超声波传感器 x3])
         
         %% 物理连接
         HW_IR_Sensor -.->|GPIO中断| HW_STM32
+        HW_Ultra -.->|GPIO| HW_STM32
         style Hardware_Device fill:#fafafa,stroke:#9e9e9e
     end
 
@@ -382,9 +389,10 @@ graph TD
         Node_AprilTag["🚩 AprilTag 节点<br/>(视觉边界检测)"]:::ai
         Node_VIO["👁️ ORB-SLAM3 (VIO)<br/>(视觉+IMU里程计)"]:::ai
         
-        %% 新增：目标筛选逻辑
-        Node_Gating["🎯 目标筛选 (Target Gating)<br/>(Vis Dist vs UWB Dist)"]:::ai
+        %% 新增：避障融合
+        Node_Obstacle["🚧 避障融合 (Obstacle Fusion)<br/>(Ultrasonic + Vision)"]:::ai
         
+        Node_Gating["🎯 目标筛选 (Target Gating)<br/>(Vis Dist vs UWB Dist)"]:::ai
         Node_Fusion["📍 多传感器融合<br/>(EKF: UWB+VIO+Odom)"]:::ai
         Node_IR_Filter["🛡️ 红外判定节点<br/>(漏桶算法 Leaky Bucket)"]:::ai
     end
@@ -396,7 +404,7 @@ graph TD
         Node_BT{{"🌲 行为树核心<br/>(Behavior Tree)"}}:::logic
         
         %% 详细逻辑模块
-        Logic_Safety["⛔ 安全与规则裁决<br/>(Safety & Rules)"]:::logic
+        Logic_Safety["⛔ 安全护盾 (Safety Shield)<br/>(最高优先级急停)"]:::logic
         Logic_Chase["🏃 追逐策略<br/>(Visual Servo + PID)"]:::logic
         Logic_Defense["🛡️ 防御策略<br/>(Blind Spin / Retreat)"]:::logic
         Logic_Game["🎮 游戏状态管理<br/>(Win / Lose / HP)"]:::logic
@@ -419,35 +427,40 @@ graph TD
     Node_Cam -->|Image Raw| Node_YOLO
     Node_Cam -->|Image Raw| Node_AprilTag
     Node_Cam -->|Image Raw| Node_VIO
+    Node_Cam -->|Visual Obstacles| Node_Obstacle
+    
     Node_UWB -->|距离数据 D_uwb| Node_Gating
+    
     Node_Bridge -->|里程计 & IMU| Node_Fusion
     Node_Bridge -->|IMU Raw| Node_VIO
-    Node_Bridge -->|"红外解码事件/RAW"| Node_IR_Filter
+    Node_Bridge -->|"红外解码事件"| Node_IR_Filter
+    Node_Bridge -->|"超声波距离"| Node_Obstacle
 
     %% 连线关系：感知内部流转
     Node_VIO -->|Pose Change| Node_Fusion
-    Node_YOLO -->|"所有检测框 D_vis"| Node_Gating
+    Node_YOLO -->|"检测框 D_vis"| Node_Gating
     Node_Gating -->|"锁定目标 ID"| Node_Fusion
     
     %% 连线关系：感知 -> 决策
     Node_Gating -->|"目标偏差 Error_x"| Node_BT
     Node_AprilTag -->|"墙壁距离 D_tag"| Logic_Safety
+    Node_Obstacle -->|"障碍物距离"| Logic_Safety
+    
     Node_Fusion -->|"机器人融合位姿"| Node_BT
-    Node_IR_Filter -->|"有效命中 (Hit)"| Logic_Game
+    Node_IR_Filter -->|"有效命中"| Logic_Game
 
-    %% 连线关系：决策内部
-    Logic_Safety -->|"强制接管/暂停"| Node_BT
+    %% 连线关系：决策内部 (去除回环标签防止崩溃)
+    Logic_Safety -.-> Node_Bridge
     Node_BT <--> Logic_Chase
     Node_BT <--> Logic_Defense
     Node_BT <--> Logic_Game
 
     %% 连线关系：决策 -> 输出/执行
-    Logic_Chase -->|"cmd_vel (PID速度)"| Node_Bridge
-    Logic_Defense -->|"cmd_vel (底盘连接)"| Node_Bridge
-    Logic_Safety -->|"急停/边界限制"| Node_Bridge
-    Logic_Game -->|"血量/灯效指令"| Node_Bridge
-    Logic_Game -->|"表情状态"| Node_UI
-    Logic_Game -->|"音效触发"| Node_Audio
+    Logic_Chase -.-> Node_Bridge
+    Logic_Defense -.-> Node_Bridge
+    Logic_Game -.-> Node_Bridge
+    Logic_Game -->|"表情"| Node_UI
+    Logic_Game -->|"音效"| Node_Audio
             `,
             'localization': `
 graph TD
@@ -486,8 +499,8 @@ graph TD
     UWB & Vis --> Outlier --> TimeSync
     
     TimeSync --> Predict
-    Predict -->|先验估计| Update
-    Update -->|后验估计| Predict
+    Predict --> Update
+    Update --> Predict
     
     Update --> FusedPose & Uncertainty
             `,
@@ -612,6 +625,9 @@ stateDiagram-v2
                     <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
                         <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#dcfce7" stroke-width="1"/>
                     </pattern>
+                    <marker id="arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+                        <path d="M0,0 L0,6 L9,3 z" fill="#1e40af" />
+                    </marker>
                 </defs>
                 <rect width="100%" height="100%" fill="url(#grid)" />
                 
@@ -655,12 +671,17 @@ stateDiagram-v2
                 <!-- 4. 机器人与玩家 -->
                 <!-- Robot -->
                 <g transform="translate(300, 250) rotate(20)">
-                    <!-- 视野扇形 -->
+                    <!-- 超声波雷达探测扇区 -->
+                    <path d="M 0 0 L -30 -50 A 60 60 0 0 1 30 -50 Z" fill="#fbbf24" opacity="0.3" transform="translate(0, -25) rotate(0)" />
+                    <path d="M 0 0 L -30 -50 A 60 60 0 0 1 30 -50 Z" fill="#fbbf24" opacity="0.3" transform="translate(-20, -10) rotate(-45)" />
+                    <path d="M 0 0 L -30 -50 A 60 60 0 0 1 30 -50 Z" fill="#fbbf24" opacity="0.3" transform="translate(20, -10) rotate(45)" />
+
+                    <!-- 视野扇形 (视觉) -->
                     <path d="M 0 0 L 150 -60 A 160 160 0 0 1 150 60 Z" fill="#60a5fa" opacity="0.2"/>
                     <circle r="25" fill="#3b82f6" stroke="#1e40af" stroke-width="3"/>
                     <text x="0" y="8" text-anchor="middle" font-size="20">🤖</text>
                     <line x1="0" y1="0" x2="40" y2="0" stroke="#1e40af" stroke-width="3" marker-end="url(#arrow)"/>
-                    <text x="-20" y="45" font-size="12" fill="#1e40af" font-weight="bold">Robot (VIO+UWB)</text>
+                    <text x="-20" y="45" font-size="12" fill="#1e40af" font-weight="bold">Robot (VIO+UWB+Sonar)</text>
                 </g>
 
                 <!-- Player -->
@@ -686,7 +707,7 @@ stateDiagram-v2
             <p class="text-xs text-slate-500 mt-2 text-center">
                 <i class="fas fa-info-circle"></i> 图示说明: 
                 <span class="inline-block w-3 h-3 bg-yellow-400 rounded-full mx-1"></span>UWB信标 
-                <span class="inline-block w-3 h-3 bg-slate-200 rounded-full mx-1"></span>纯蓝牙信标 
+                <span class="inline-block w-3 h-3 bg-yellow-200 rounded-full mx-1"></span>超声波探测区 
                 <span class="inline-block w-3 h-3 bg-blue-500 rounded-full mx-1"></span>机器人 
                 <span class="inline-block w-3 h-3 bg-red-400 rounded-full mx-1"></span>玩家
             </p>
@@ -710,7 +731,7 @@ stateDiagram-v2
         mermaid.initialize({ 
             startOnLoad: false,
             theme: 'base',
-            flowchart: { curve: 'linear' }, 
+            flowchart: { curve: 'basis' }, 
             maxTextSize: 999999,
             themeVariables: {
                 fontFamily: 'Inter, sans-serif',
@@ -732,12 +753,16 @@ stateDiagram-v2
 
             try {
                 if (panzoomInstances[id]) {
-                     container.parentElement.removeEventListener('wheel', panzoomInstances[id].zoomWithWheel);
+                     // Remove manual wheel listener
+                    container.parentElement.removeEventListener('wheel', panzoomInstances[id].zoomWithWheel);
+
+                    // Call library cleanup
                     if (typeof panzoomInstances[id].destroy === 'function') {
                         panzoomInstances[id].destroy();
                     } else if (typeof panzoomInstances[id].dispose === 'function') {
                         panzoomInstances[id].dispose();
                     }
+                    
                     delete panzoomInstances[id];
                 }
                 
