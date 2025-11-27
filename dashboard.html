@@ -372,7 +372,7 @@ graph TD
     %% -------------------
     subgraph Perception_Layer ["感知与算法层 (Perception Layer)"]
         Node_YOLO["🧠 YOLO 视觉节点<br/>(RKNN / 人体检测)"]:::ai
-        Node_AprilTag["🚩 AprilTag 节点<br/>(电子围栏检测)"]:::ai
+        Node_AprilTag["🚩 AprilTag/蓝牙/UWB节点<br/>(电子围栏检测)"]:::ai
         
         %% 新增：目标筛选逻辑
         Node_Gating["🎯 目标筛选 (Target Gating)<br/>(Vis Dist vs UWB Dist)"]:::ai
@@ -390,7 +390,7 @@ graph TD
         %% 详细逻辑模块
         Logic_Safety["⛔ 安全与规则裁决<br/>(Safety & Rules)"]:::logic
         Logic_Chase["🏃 追逐策略<br/>(Visual Servo + PID)"]:::logic
-        Logic_Defense["🛡️ 防御/盲操策略<br/>(Blind Spin / Retreat)"]:::logic
+        Logic_Defense["🛡️ 防御策略<br/>(Blind Spin / Retreat)"]:::logic
         Logic_Game["🎮 游戏状态管理<br/>(Win / Lose / HP)"]:::logic
     end
 
