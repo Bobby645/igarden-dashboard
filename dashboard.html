@@ -364,7 +364,7 @@ graph TD
     subgraph Driver_Layer ["驱动接入层 (Driver Layer)"]
         Node_Cam["📷 相机驱动<br/>(v4l2_camera)"]:::driver
         Node_UWB["📡 UWB 驱动<br/>(Serial Read)"]:::driver
-        Node_Bridge["Bridge 桥接节点<br/>(STM32 Comms)"]:::driver
+        Node_Bridge["Bridge桥接点<br/>(STM32)"]:::driver
     end
 
     %% -------------------
@@ -405,7 +405,7 @@ graph TD
     %% 连线关系：硬件 -> 驱动
     HW_Cam ==> Node_Cam
     HW_UWB ==> Node_UWB
-    HW_STM32 <==>|"UART (串口协议)"| Node_Bridge
+    HW_STM32 <==>|""| Node_Bridge
 
     %% 连线关系：驱动 -> 感知
     Node_Cam -->|Image Raw| Node_YOLO
@@ -432,8 +432,8 @@ graph TD
 
     %% 连线关系：决策 -> 输出/执行
     Logic_Chase -->|"cmd_vel (PID速度)"| Node_Bridge
-    Logic_Defense -->|"cmd_vel (盲操速度)"| Node_Bridge
-    Logic_Safety -->|"急停/反向力场"| Node_Bridge
+    Logic_Defense -->|"cmd_vel (底盘连接)"| Node_Bridge
+    Logic_Safety -->|"急停/边界限制"| Node_Bridge
     Logic_Game -->|"血量/灯效指令"| Node_Bridge
     Logic_Game -->|"表情状态"| Node_UI
     Logic_Game -->|"音效触发"| Node_Audio
