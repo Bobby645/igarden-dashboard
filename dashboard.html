@@ -276,10 +276,9 @@ graph TD
         C_UWB["UWB 标签模组"]
         C_IR["红外发射管 LED"]
         C_Btn["交互按键"]
-        C_Bluetooth["蓝牙 BLE"]
 
         C_Bat --> C_MCU
-        C_MCU -->|PWM 38kHz| C_IR
+        C_MCU -->|NEC 10Hz| C_IR
         C_MCU <-->|"UART/SPI"| C_UWB
         C_MCU -->|GPIO| C_Btn
         C_MCU -.->|"BLE 广播"| R_Bluetooth
@@ -304,7 +303,7 @@ graph TD
         end
 
         subgraph Lower_Computer ["下位机 (运动控制)"]
-            STM32["STM32F4/F1 单片机"]
+            STM32["STM32 单片机"]
             IMU["6轴 IMU 陀螺仪"]
             Motor_Dr["电机驱动板"]
             Servo_Lift["升降机构舵机/推杆"]
@@ -324,9 +323,9 @@ graph TD
         RK3588 -->|"SPI/USB"| Screen_L
         RK3588 -->|"SPI/USB"| Screen_R
         RK3588 -->|"I2S/USB"| Audio
-        RK3588 <==>|"UART/USB Serial"| STM32
+        RK3588 <==>|"UART/CAN"| STM32
 
-        STM32 <-->|I2C| IMU
+        STM32 <-->|CAN| IMU
         STM32 -->|PWM| Motor_Dr
         STM32 -->|PWM| Servo_Lift
         STM32 -->|GPIO| LED_Strip
