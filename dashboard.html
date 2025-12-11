@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iGarden 迪士尼 - 智能架构看板 v2.7</title>
+    <title>iGarden 迪士尼 - 智能架构看板 v3.0</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Mermaid.js -->
@@ -35,19 +35,9 @@
             overflow: visible; 
             display: flex;
             align-items: flex-start;
-            justify-content: center; /* 居中显示 */
+            justify-content: center;
             position: relative;
-            padding: 40px; /* 给边缘留白 */
-        }
-
-        /* 确保内容不被截断 */
-        .content-wrapper {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 40px;
-            width: auto;
-            height: auto;
+            padding: 40px; 
         }
 
         .diagram-container svg {
@@ -55,6 +45,23 @@
             height: auto !important;
             overflow: visible !important;
         }
+
+        /* Markdown 内容样式 */
+        .prose {
+            color: #334155;
+            line-height: 1.7;
+            font-size: 0.95rem;
+        }
+        .prose h1 { font-size: 1.5rem; font-weight: 800; color: #1e293b; margin-top: 2rem; margin-bottom: 1rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem; }
+        .prose h2 { font-size: 1.25rem; font-weight: 700; color: #334155; margin-top: 1.5rem; margin-bottom: 0.75rem; display: flex; align-items: center; }
+        .prose h3 { font-size: 1.1rem; font-weight: 600; color: #475569; margin-top: 1rem; margin-bottom: 0.5rem; }
+        .prose p { margin-bottom: 1rem; }
+        .prose ul { list-style-type: disc; padding-left: 1.2rem; margin-bottom: 1rem; }
+        .prose li { margin-bottom: 0.25rem; }
+        .prose code { background-color: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-family: monospace; color: #ef4444; font-size: 0.9em; }
+        .prose pre { background-color: #1e293b; color: #f8fafc; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin-bottom: 1.5rem; }
+        .prose blockquote { border-left: 4px solid #6366f1; padding-left: 1rem; font-style: italic; color: #64748b; background: #f8fafc; padding: 0.8rem; border-radius: 0 0.5rem 0.5rem 0; margin-bottom: 1rem; }
+        .prose .math-block { background: #fffbeb; border: 1px solid #fcd34d; padding: 0.8rem; text-align: center; border-radius: 0.5rem; font-family: serif; font-style: italic; margin-bottom: 1rem; color: #92400e; }
 
         /* 面板过渡动画 */
         .panel-slide {
@@ -125,7 +132,7 @@
                 <i class="fas fa-robot"></i>
                 iGarden 迪士尼
             </h1>
-            <p class="text-xs text-indigo-200 mt-1">架构看板 v2.7 (Simplified)</p>
+            <p class="text-xs text-indigo-200 mt-1">架构看板 v3.0 (Merged Docs)</p>
             <p class="text-xs text-indigo-300 mt-2 flex items-center gap-1">
                 <i class="fas fa-user-edit"></i> 作者：韦翔斌
             </p>
@@ -143,6 +150,10 @@
             <button onclick="switchTab('localization')" id="btn-localization" class="nav-item w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors border-l-4 border-transparent flex items-center gap-3">
                 <i class="fas fa-map-marked-alt w-5 text-center"></i>
                 <span>定位与场地示意</span>
+            </button>
+            <button onclick="switchTab('stereo')" id="btn-stereo" class="nav-item w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors border-l-4 border-transparent flex items-center gap-3">
+                <i class="fas fa-binoculars w-5 text-center"></i>
+                <span>双目避障算法</span>
             </button>
             <button onclick="switchTab('algorithm')" id="btn-algorithm" class="nav-item w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors border-l-4 border-transparent flex items-center gap-3">
                 <i class="fas fa-code-branch w-5 text-center"></i>
@@ -195,12 +206,28 @@
         </header>
 
         <!-- 画布容器 -->
-        <div class="flex-1 relative overflow-hidden canvas-bg cursor-move" id="canvas-wrapper">
-            <div id="hardware" class="diagram-container"></div>
-            <div id="software" class="diagram-container hidden"></div>
-            <div id="localization" class="diagram-container hidden"></div>
-            <div id="algorithm" class="diagram-container hidden"></div>
-            <div id="fsm" class="diagram-container hidden"></div>
+        <div class="flex-1 relative overflow-hidden bg-slate-50" id="canvas-wrapper">
+            <!-- 标准图表容器 -->
+            <div id="hardware" class="diagram-container canvas-bg cursor-move"></div>
+            <div id="software" class="diagram-container hidden canvas-bg cursor-move"></div>
+            <div id="localization" class="diagram-container hidden canvas-bg cursor-move"></div>
+            <div id="algorithm" class="diagram-container hidden canvas-bg cursor-move"></div>
+            <div id="fsm" class="diagram-container hidden canvas-bg cursor-move"></div>
+            
+            <!-- 双目算法+文档 混合容器 -->
+            <div id="stereo" class="hidden h-full flex flex-col">
+                <!-- 上半部分：Mermaid 图表 (可缩放) -->
+                <div class="flex-none h-3/5 relative border-b border-slate-300 canvas-bg cursor-move overflow-hidden">
+                    <div id="stereo-chart-container" class="w-full h-full flex items-center justify-center"></div>
+                    <div class="absolute top-4 right-4 bg-white/80 px-2 py-1 rounded text-xs text-slate-500 pointer-events-none">
+                        <i class="fas fa-search"></i> 算法流程图区域 (可缩放)
+                    </div>
+                </div>
+                <!-- 下半部分：Markdown 文档 (可滚动) -->
+                <div class="flex-1 overflow-y-auto bg-white">
+                    <div id="stereo-doc-container" class="prose max-w-4xl mx-auto p-8"></div>
+                </div>
+            </div>
             
             <!-- 加载提示 -->
             <div id="loading" class="absolute inset-0 flex items-center justify-center bg-white/80 z-50 pointer-events-none transition-opacity duration-300 opacity-0">
@@ -241,9 +268,9 @@
                     <p>👋 你好！我是您的 iGarden 机器人架构助手。</p>
                     <p>架构重构已完成！当前状态：</p>
                     <ul class="list-disc list-inside text-xs space-y-1 ml-1 text-slate-600">
-                        <li>已移除超声波、AprilTag、VIO</li>
-                        <li>升级为纯视觉双目避障</li>
-                        <li>定位采用纯 UWB + 里程计融合</li>
+                        <li>硬件：RK3588 DP输出接双屏</li>
+                        <li>新增：双目SGBM避障算法栏目（含技术文档）</li>
+                        <li>定位：纯 UWB + 里程计融合</li>
                     </ul>
                 </div>
             </div>
@@ -272,6 +299,111 @@
 
     <script>
         const apiKey = ""; // Runtime Environment will inject key
+
+        // ----------------------------------------------------
+        // 技术白皮书内容 (Markdown)
+        // ----------------------------------------------------
+        const technicalDoc = `
+# iGarden 机器人感知与导航技术白皮书
+
+> **版本:** v1.0 | **适用硬件:** RK3588 + STM32 + 双目相机 | **场景:** 庭院草地
+
+---
+
+## 1. 总体流程概览 (System Overview)
+
+本系统采用 **“纯视觉避障 + UWB/里程计融合定位”** 的轻量化架构，摒弃了昂贵的激光雷达和不稳定的 VIO，专注于解决草地环境下的动态互动问题。
+
+**数据流向：**
+1. **感知输入:** 双目图像 (RK3588) + 编码器/IMU (STM32) + UWB (STM32)。
+2. **底层处理:** STM32 完成里程计解算和 UWB 测距，上报给 RK3588。
+3. **上层计算:** RK3588 运行 SGBM 深度计算、V-Disparity 障碍物提取、DWA 局部规划。
+4. **控制输出:** RK3588 下发 $v_x, v_y, \\omega$ 速度指令，STM32 执行电机闭环。
+
+---
+
+## 2. 核心算法详解 (Core Algorithms)
+
+### 2.1 双目深度计算 (SGBM)
+我们使用 **Semi-Global Block Matching (SGBM)** 算法生成稠密视差图。相比于深度学习方法，SGBM 在 CPU/GPU 上运行更稳定，且对草地纹理有较好的适应性。
+
+* **输入:** 左图 ($I_L$)，右图 ($I_R$)。
+* **输出:** 视差图 ($D$)，其中像素值 $d$ 代表视差。
+* **深度公式:**
+  <div class="math-block">
+  Z = (f · B) / d
+  </div>
+  * $f$: 焦距 (Focal Length)
+  * $B$: 基线长度 (Baseline, e.g., 120mm)
+
+### 2.2 V-Disparity (V-视差图) 避障
+这是本方案的核心。V-Disparity 将 3D 点云处理简化为 2D 图像处理，极大降低了算力消耗。
+
+#### **什么是 V-Disparity?**
+它是一张统计图，用于描述每一行像素的视差分布。
+* **X轴:** 视差值 $d$ (距离)。
+* **Y轴:** 原始图像行号 $v$。
+* **像素值:** 原始视差图中，第 $v$ 行具有视差 $d$ 的像素点数量。
+
+#### **几何特征:**
+1. **平坦地面 (Ground):** 表现为一条**倾斜直线**。从图像底部（近）到中部（远），距离变远，视差变小。
+2. **垂直障碍 (Obstacle):** 表现为**垂直亮线**。同一物体在垂直方向上距离相机深度基本一致。
+
+#### **算法步骤:**
+1. **生成 V-Disp 图:** 统计视差图每行的直方图。
+2. **地面拟合:** 使用霍夫变换 (Hough Transform) 提取 V-Disp 图中最显著的斜线，得到地面方程 $d = \\alpha v + \\beta$。
+3. **障碍提取:** 遍历原始视差图，若某点的视差 $d(u,v)$ 显著大于地面方程计算值（即凸起于地面），则标记为障碍物。
+
+### 2.3 2D 占据栅格 (Occupancy Grid)
+将提取出的障碍物像素投影到俯视角的 2D 网格地图中。
+* **投影公式:**
+  <div class="math-block">
+  X = (u - c_u) · Z / f <br>
+  Z = (f · B) / d
+  </div>
+* **栅格化:** 将 $(X, Z)$ 坐标映射到 $5cm \\times 5cm$ 的网格中，生成局部代价地图 (Local Costmap)。
+
+---
+
+## 3. 局部规划：DWA (Dynamic Window Approach)
+
+有了局部地图，我们使用 **DWA 动态窗口法** 来规划运动轨迹。
+
+### **核心思想**
+在速度空间 $(v, \\omega)$ 中采样，模拟机器人未来 1-2 秒的轨迹，并对轨迹打分。
+
+### **评分标准 (Cost Function)**
+<div class="math-block">
+Score = α · Heading + β · Dist + γ · Vel
+</div>
+
+1. **Heading (目标导向):** 轨迹终点是否朝向目标（YOLO 锁定的人）？
+2. **Dist (避障):** 轨迹是否远离栅格地图中的障碍物？
+3. **Vel (速度):** 是否能保持较高速度（不磨蹭）？
+
+最终选择分数最高的 $(v, \\omega)$ 发送给 STM32。
+
+---
+
+## 4. 通信协议 (Communication)
+
+**接口:** UART (波特率 115200)
+**帧格式:** \`HEAD(0xA5) + TYPE + DATA + CHECKSUM\`
+
+#### **RK3588 -> STM32 (控制指令)**
+* **Type 0x01 (速度控制):**
+  * Data: \`vx(2byte) + vy(2byte) + wz(2byte)\` (单位: mm/s, mrad/s)
+* **Type 0x02 (状态反馈):**
+  * Data: \`LED_Mode(1byte) + Audio_ID(1byte)\`
+
+#### **STM32 -> RK3588 (传感器数据)**
+* **Type 0x10 (里程计/IMU):**
+  * Data: \`pos_x + pos_y + yaw + linear_vel + angular_vel\`
+* **Type 0x11 (UWB):**
+  * Data: \`Distance(2byte) + ID(1byte)\`
+* **Type 0x12 (红外):**
+  * Data: \`IR_Code(4byte) + Hit_Flag(1byte)\`
+`;
 
         // 初始 Mermaid 代码数据
         const diagrams = {
@@ -302,11 +434,20 @@ graph TD
             RK3588["RK3588 主控板 <br/> Ubuntu + ROS 2"]
             Cam["双目摄像头 (Stereo Camera)"]
             UWB_Base["UWB 基站模组"]
-            Screen_L["1.28寸 圆形屏 (左眼)"]
-            Screen_R["1.28寸 圆形屏 (右眼)"]
+            
+            %% 屏幕连接修正
+            DP_Port["DP 接口"]
+            Splitter["双HDMI 转接板"]
+            Screen_L["4寸 圆形屏 (左眼)"]
+            Screen_R["4寸 圆形屏 (右眼)"]
+            
             Audio["扬声器"]
             IR_Recv["红外接收头 <br/> (直接GPIO连接)"]
             R_Bluetooth["板载蓝牙"]
+            
+            RK3588 --> DP_Port --> Splitter
+            Splitter ==> Screen_L
+            Splitter ==> Screen_R
         end
 
         subgraph Lower_Computer ["下位机 (运动控制)"]
@@ -327,8 +468,6 @@ graph TD
         Cam ==>|"USB 3.0"| RK3588
         UWB_Base <-->|"USB/UART"| RK3588
         IR_Recv -->|"GPIO (Python处理)"| RK3588
-        RK3588 -->|"SPI/USB"| Screen_L
-        RK3588 -->|"SPI/USB"| Screen_R
         RK3588 -->|"I2S/USB"| Audio
         RK3588 <==>|"UART/CAN"| STM32
 
@@ -344,7 +483,9 @@ graph TD
     C_IR -.->|"红外光束 NEC"| IR_Recv
 
     style RK3588 fill:#e0e7ff,stroke:#4338ca,stroke-width:2px
-    style STM32 fill:#dbeafe,stroke:#2563eb,stroke-width:2px
+    style Splitter fill:#fef3c7,stroke:#d97706
+    style Screen_L fill:#dbeafe,stroke:#1d4ed8
+    style Screen_R fill:#dbeafe,stroke:#1d4ed8
             `,
             'software': `
 graph TD
@@ -427,7 +568,7 @@ graph TD
     
     %% 连线关系：感知 -> 决策
     Node_Gating -->|"目标偏差 Error_x"| Node_BT
-    Node_Stereo -->|"障碍物距离/深度图"| Logic_Safety
+    Node_Stereo -->|"障碍物栅格/距离"| Logic_Safety
     
     Node_Loc_Fusion -->|"机器人融合位姿"| Node_BT
     Node_IR_Filter -->|"有效命中"| Logic_Game
@@ -444,6 +585,51 @@ graph TD
     Logic_Game -.-> Node_Bridge
     Logic_Game -->|"表情"| Node_UI
     Logic_Game -->|"音效"| Node_Audio
+            `,
+            'stereo': `
+graph TD
+    %% Canvas Styles
+    classDef input fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef process fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
+    classDef core fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px;
+    classDef output fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
+
+    subgraph Input_Stage ["1. 图像采集 (Input)"]
+        Img_L["左目图像 (Left)"]:::input
+        Img_R["右目图像 (Right)"]:::input
+        Calib["标定参数 (Intrinsics)"]:::input
+    end
+
+    subgraph Depth_Calc ["2. 深度计算 (Depth Estimation)"]
+        Rectify["畸变校正 & 极线对齐 (Rectification)<br/>(OpenCV/VPI)"]:::process
+        SGBM["SGBM 立体匹配<br/>(Semi-Global Block Matching)"]:::core
+        Disparity["视差图 (Disparity Map)"]:::output
+    end
+
+    subgraph Obstacle_Analyze ["3. 障碍物提取 (V-Disparity)"]
+        V_Disp["生成 V-视差图 (V-Disparity Map)<br/>(把每一行的视差累加)"]:::process
+        Ground_Fit["地面直线拟合 (Ground Fitting)<br/>(Hough Transform)"]:::process
+        Obstacle_Ext["剔除地面 -> 提取障碍物像素"]:::core
+    end
+
+    subgraph Planning ["4. 局部规划 (Local Planner)"]
+        Occ_Grid["占据栅格地图 (Occupancy Grid)<br/>(2D 俯视图)"]:::output
+        DWA["DWA 动态窗口法<br/>(结合目标方向 + 避障)"]:::core
+        Cmd_Vel["最终速度指令 (vx, wz)"]:::output
+    end
+
+    %% Data Flow
+    Img_L & Img_R & Calib --> Rectify
+    Rectify --> SGBM
+    SGBM --> Disparity
+    
+    Disparity --> V_Disp
+    V_Disp --> Ground_Fit
+    Ground_Fit --> Obstacle_Ext
+    
+    Obstacle_Ext --> Occ_Grid
+    Occ_Grid --> DWA
+    DWA --> Cmd_Vel
             `,
             'localization': `
 graph TD
@@ -481,7 +667,7 @@ graph TD
     
     TimeSync --> DeadReckoning
     DeadReckoning --> Correction
-    Correction --> DeadReckoning
+    Correction -.-> DeadReckoning
     
     Correction --> FusedPose --> GeoFence
             `,
@@ -594,9 +780,6 @@ stateDiagram-v2
             `
         };
 
-        // -------------------------
-        // SVG 场地示意图 (作为字符串模板)
-        // -------------------------
         const fieldMapSVG = `
         <div style="background:white; padding:20px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.1); width:100%; max-width:800px;">
             <h3 class="text-center font-bold text-lg mb-4 text-slate-700">🏟️ 庭院场地与信标布局示意 (Field Topology)</h3>
@@ -700,6 +883,7 @@ stateDiagram-v2
             'hardware': '硬件拓扑结构图',
             'software': 'ROS 2 软件架构图',
             'localization': '定位与场地示意 (Localization & Field)',
+            'stereo': '双目避障算法 (Stereo Avoidance)',
             'algorithm': '红外瞄准优化算法 (Fast Response)',
             'fsm': '游戏行为状态机'
         };
@@ -731,31 +915,89 @@ stateDiagram-v2
             const code = codeOverride || diagrams[id];
             const loading = document.getElementById('loading');
             
+            // Handle stereo tab with special structure
+            if (id === 'stereo') {
+                const chartContainer = document.getElementById('stereo-chart-container');
+                const docContainer = document.getElementById('stereo-doc-container');
+                
+                if (!chartContainer || !docContainer) return; // Safety check
+
+                // 1. Render Diagram
+                if(!codeOverride) loading.style.opacity = '1';
+                
+                try {
+                    // Cleanup panzoom for stereo diagram specifically if exists
+                    if (panzoomInstances[id]) {
+                        chartContainer.removeEventListener('wheel', panzoomInstances[id].zoomWithWheel);
+                        if (typeof panzoomInstances[id].destroy === 'function') panzoomInstances[id].destroy();
+                        delete panzoomInstances[id];
+                    }
+
+                    // Render mermaid
+                    chartContainer.innerHTML = '';
+                    const svgId = `mermaid-svg-${id}-${Date.now()}`;
+                    const { svg } = await mermaid.render(svgId, code);
+                    chartContainer.innerHTML = svg;
+
+                    // Setup panzoom for the chart part
+                    const svgElement = chartContainer.querySelector('svg');
+                    if (svgElement) {
+                        svgElement.style.maxWidth = 'none';
+                        svgElement.style.height = '100%';
+                        
+                        const instance = Panzoom(chartContainer, {
+                            maxScale: 10,
+                            minScale: 0.1,
+                            contain: false,
+                            startScale: 1
+                        });
+                        chartContainer.addEventListener('wheel', instance.zoomWithWheel);
+                        panzoomInstances[id] = instance;
+                        
+                        // Simple fit
+                        setTimeout(() => {
+                            instance.zoom(0.8);
+                            instance.pan(0,0); // Simple center
+                        }, 100);
+                    }
+
+                    // 2. Render Docs
+                    docContainer.innerHTML = marked.parse(technicalDoc);
+
+                    if(document.getElementById('editor-status')) {
+                        document.getElementById('editor-status').textContent = '渲染成功 ' + new Date().toLocaleTimeString();
+                        document.getElementById('editor-status').className = 'text-green-600';
+                    }
+
+                } catch (error) {
+                    console.error("Mermaid Render Error:", error);
+                    chartContainer.innerHTML = `<div class="text-red-500 p-4">Error: ${error.message}</div>`;
+                } finally {
+                    loading.style.opacity = '0';
+                }
+                return;
+            }
+
+            // Standard logic for other tabs
             if(!codeOverride) loading.style.opacity = '1';
 
             try {
                 if (panzoomInstances[id]) {
-                     // Remove manual wheel listener
-                    container.parentElement.removeEventListener('wheel', panzoomInstances[id].zoomWithWheel);
-
-                    // Call library cleanup
+                     container.parentElement.removeEventListener('wheel', panzoomInstances[id].zoomWithWheel);
                     if (typeof panzoomInstances[id].destroy === 'function') {
                         panzoomInstances[id].destroy();
                     } else if (typeof panzoomInstances[id].dispose === 'function') {
                         panzoomInstances[id].dispose();
                     }
-                    
                     delete panzoomInstances[id];
                 }
                 
-                // Clear container
                 container.innerHTML = '';
 
-                // Special handling for 'localization' tab to include SVG Map + Mermaid
                 if (id === 'localization' && !codeOverride) {
                     const wrapperDiv = document.createElement('div');
                     wrapperDiv.className = 'content-wrapper';
-                    wrapperDiv.innerHTML = fieldMapSVG; // Inject SVG Map
+                    wrapperDiv.innerHTML = fieldMapSVG;
                     
                     const mermaidDiv = document.createElement('div');
                     mermaidDiv.style.width = '100%';
@@ -766,18 +1008,14 @@ stateDiagram-v2
                     wrapperDiv.appendChild(mermaidDiv);
                     container.appendChild(wrapperDiv);
                 } else {
-                    // Standard Mermaid rendering
                     const svgId = `mermaid-svg-${id}-${Date.now()}`;
                     const { svg } = await mermaid.render(svgId, code);
                     container.innerHTML = svg;
                 }
                 
-                // Setup Panzoom
-                // Note: For localization, we zoom the whole container which includes Map + Chart
                 const targetElement = (id === 'localization') ? container.querySelector('.content-wrapper') : container.querySelector('svg');
                 
                 if (targetElement) {
-                    // Ensure scaling works
                     if(targetElement.tagName === 'svg') {
                         targetElement.style.maxWidth = 'none';
                         targetElement.style.height = 'auto';
@@ -794,7 +1032,6 @@ stateDiagram-v2
                     container.parentElement.addEventListener('wheel', instance.zoomWithWheel);
                     panzoomInstances[id] = instance;
 
-                    // Delay fit slightly
                     setTimeout(() => fitToScreen(id), 100);
                 }
                 
@@ -818,11 +1055,12 @@ stateDiagram-v2
         }
 
         function fitToScreen(id) {
+            if (id === 'stereo') return; // Stereo handled separately
+
             const instance = panzoomInstances[id];
             const container = document.getElementById(id);
             if (!instance) return;
 
-            // Target could be SVG or Div Wrapper
             const target = (id === 'localization') ? container.querySelector('.content-wrapper') : container.querySelector('svg');
             if (!target) return;
 
@@ -849,7 +1087,6 @@ stateDiagram-v2
             
             instance.zoom(newScale, { animate: true });
             
-            // Calculate center offset
             const offsetX = (containerRect.width - contentW * newScale) / 2;
             const offsetY = (containerRect.height - contentH * newScale) / 2;
             
@@ -857,7 +1094,6 @@ stateDiagram-v2
             updateZoomLevel(id);
         }
 
-        // 面板控制
         const editorPanel = document.getElementById('editor-panel');
         const aiPanel = document.getElementById('ai-panel');
         const codeEditor = document.getElementById('code-editor');
@@ -889,7 +1125,6 @@ stateDiagram-v2
             }
         }
 
-        // 编辑器事件
         codeEditor.addEventListener('input', (e) => {
             const newCode = e.target.value;
             diagrams[activeTab] = newCode;
@@ -897,7 +1132,6 @@ stateDiagram-v2
             debounceTimer = setTimeout(() => { renderDiagram(activeTab, newCode); }, 800);
         });
 
-        // Gemini AI 逻辑
         async function callGemini(prompt, includeContext = true) {
             const chatHistory = document.getElementById('chat-history');
             const btnSend = document.getElementById('btn-send');
@@ -1054,31 +1288,60 @@ ${diagrams[activeTab]}
             document.getElementById('header-title').textContent = titles[tabId];
             
             Object.keys(diagrams).forEach(key => {
-                document.getElementById(key).classList.add('hidden');
+                const el = document.getElementById(key);
+                if(el) el.classList.add('hidden');
             });
-            document.getElementById(tabId).classList.remove('hidden');
+            const stereoEl = document.getElementById('stereo');
+            if(stereoEl) stereoEl.classList.add('hidden');
+
+            if (tabId === 'stereo') {
+                stereoEl.classList.remove('hidden');
+            } else {
+                const targetEl = document.getElementById(tabId);
+                if(targetEl) targetEl.classList.remove('hidden');
+            }
             
             activeTab = tabId;
 
             if (editorVisible) codeEditor.value = diagrams[activeTab];
 
-            if (!panzoomInstances[tabId]) {
-                await renderDiagram(tabId);
-            } else {
-                updateZoomLevel(tabId);
-            }
+            // Always trigger renderDiagram to handle specific tab logic (like stereo setup)
+            // or re-initialization of panzoom instances if they were destroyed
+            await renderDiagram(tabId);
+            
+            if (tabId !== 'stereo') updateZoomLevel(tabId);
         }
 
-        function zoomIn() { panzoomInstances[activeTab]?.zoomIn(); updateZoomLevel(activeTab); }
-        function zoomOut() { panzoomInstances[activeTab]?.zoomOut(); updateZoomLevel(activeTab); }
-        function resetView() { fitToScreen(activeTab); }
+        function zoomIn() { 
+            if(activeTab === 'stereo') {
+                panzoomInstances['stereo']?.zoomIn();
+            } else {
+                panzoomInstances[activeTab]?.zoomIn(); 
+                updateZoomLevel(activeTab); 
+            }
+        }
+        
+        function zoomOut() { 
+            if(activeTab === 'stereo') {
+                panzoomInstances['stereo']?.zoomOut();
+            } else {
+                panzoomInstances[activeTab]?.zoomOut(); 
+                updateZoomLevel(activeTab); 
+            }
+        }
+        
+        function resetView() { 
+            if(activeTab !== 'stereo') fitToScreen(activeTab); 
+            // Stereo reset logic could be added if needed, currently just fits
+        }
+        
         function updateZoomLevel(id) {
             const scale = panzoomInstances[id]?.getScale();
             if(scale) document.getElementById('zoom-level').textContent = Math.round(scale * 100) + '%';
         }
 
         window.addEventListener('load', () => switchTab('hardware'));
-        window.addEventListener('resize', () => fitToScreen(activeTab));
+        window.addEventListener('resize', () => { if(activeTab !== 'stereo') fitToScreen(activeTab); });
     </script>
 </body>
 </html>
