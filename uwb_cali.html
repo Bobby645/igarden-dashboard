@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UWB定位：算法核心与可视化</title>
+    <title>UWB定位：基站自标定与机器人追踪</title>
     <!-- 引入ml-matrix库 -->
     <script src="https://cdn.jsdelivr.net/npm/ml-matrix@6.10.4/matrix.umd.min.js"></script>
-    <!-- 引入代码高亮样式 (可选) -->
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -22,24 +21,25 @@
             color: #212529;
             text-align: center;
             font-size: 1.8rem;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
         
-        /* --- 核心布局：左右结构 --- */
+        /* --- 布局：左右结构 --- */
         #main-container {
             display: flex;
-            flex-direction: row; /* 强制水平排列 */
+            flex-direction: row;
             align-items: flex-start;
             justify-content: center;
-            gap: 30px;
-            width: 100%;
-            max-width: 1400px;
+            gap: 20px;
+            width: 98%;
+            max-width: 1600px;
             margin-bottom: 40px;
         }
 
         /* 左侧：画布容器 */
         #left-pane {
-            flex: 0 0 auto;
+            flex: 1 1 auto;
+            min-width: 600px;
         }
         #canvas-wrapper {
             position: relative;
@@ -48,26 +48,27 @@
             border-radius: 8px;
             overflow: hidden;
             border: 1px solid #dee2e6;
+            height: 700px; 
         }
         canvas {
             display: block;
             background-color: #ffffff;
             cursor: crosshair;
             touch-action: none;
+            width: 100%;
+            height: 100%;
         }
 
         /* 右侧：信息面板 */
         #right-pane {
-            flex: 1 1 400px; /* 允许伸缩，基础宽度400 */
-            min-width: 350px;
-            max-width: 500px;
+            flex: 0 0 380px;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 15px;
         }
 
         #info-panel {
-            padding: 25px;
+            padding: 20px;
             background-color: #ffffff;
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
@@ -83,25 +84,20 @@
             color: #495057;
         }
 
-        /* --- 响应式适配 --- */
         @media (max-width: 1100px) {
-            #main-container {
-                flex-direction: column; /* 屏幕窄时变回上下 */
-                align-items: center;
-            }
-            #right-pane {
-                width: 100%;
-                max-width: 600px;
-            }
+            #main-container { flex-direction: column; align-items: center; }
+            #left-pane { width: 100%; min-width: auto; }
+            #canvas-wrapper { height: 500px; }
+            #right-pane { width: 100%; flex: auto; }
         }
 
         /* --- 组件样式 --- */
         #reset-button {
-            padding: 12px 20px;
+            padding: 12px;
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            background-color: #212529; /* 黑色按钮 */
+            background-color: #212529;
             color: white;
             border: none;
             border-radius: 6px;
@@ -118,16 +114,17 @@
             color: #495057;
             margin-bottom: 15px;
             padding: 10px;
-            background: #f8f9fa;
+            background: #e9ecef;
             border-radius: 4px;
-            border-left: 4px solid #adb5bd;
+            border-left: 4px solid #6c757d;
         }
 
         .legend {
-            display: flex;
-            gap: 15px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
             margin-bottom: 20px;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             padding: 10px;
             background: #fff;
             border: 1px solid #eee;
@@ -135,135 +132,118 @@
         }
         .legend-item { display: flex; align-items: center; gap: 6px; }
         .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+        .tri { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 10px solid; display: inline-block; }
         
-        /* 颜色定义 (用户指定) */
-        .color-real { background-color: #000000; border: 2px solid #000; }
+        /* 颜色定义 */
+        .color-real { background-color: #000; }
         .color-mds  { background-color: #dc3545; }
-        .color-opt  { background-color: #0d6efd; } /* 蓝色 */
+        .color-opt  { background-color: #0d6efd; }
+        .tri-real   { border-bottom-color: #000; opacity: 0.5; }
+        .tri-calc   { border-bottom-color: #0d6efd; }
 
         table {
             width: 100%;
             border-collapse: separate;
             border-spacing: 0;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             border: 1px solid #dee2e6;
             border-radius: 6px;
             overflow: hidden;
         }
         th, td {
-            padding: 8px 10px;
+            padding: 6px;
             text-align: center;
             border-bottom: 1px solid #dee2e6;
         }
-        th {
-            background-color: #f8f9fa;
-            font-weight: 600;
-            color: #495057;
-        }
-        tr:last-child td { border-bottom: none; }
-        
-        /* 强对比度表格样式 */
-        .cell-real { color: #000; font-weight: 600; }
-        .cell-mds {
-            color: #dc3545;
-            background-color: rgba(220, 53, 69, 0.05);
-        }
-        .cell-opt {
-            color: #0d6efd;
-            background-color: rgba(13, 110, 253, 0.05);
-            font-weight: bold;
-        }
+        th { background-color: #f8f9fa; font-weight: 600; }
+        .cell-robot { background-color: #e7f1ff; font-weight: bold; color: #0d6efd; }
 
         .control-group {
             background-color: #fff3cd; 
             padding: 15px;
             border-radius: 6px;
             border: 1px solid #ffeeba;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
-        /* --- 底部代码展示区 --- */
         #code-section {
-            width: 100%;
-            max-width: 1400px;
+            width: 98%;
+            max-width: 1600px;
             background: #2d2d2d;
             color: #f8f8f2;
             padding: 20px;
             border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
             font-family: 'Consolas', 'Monaco', monospace;
             overflow-x: auto;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
         #code-section h3 {
             color: #fff;
             border-bottom: 1px solid #555;
             margin-bottom: 10px;
         }
-        code {
-            display: block;
-            white-space: pre;
-            font-size: 0.9rem;
-            line-height: 1.4;
-        }
+        code { white-space: pre; font-size: 0.9rem; line-height: 1.4; }
         .comment { color: #75715e; }
-        .keyword { color: #66d9ef; }
-        .function { color: #a6e22e; }
-        .string { color: #e6db74; }
     </style>
 </head>
 <body>
 
-    <h1>UWB基站自定位 (MDS + 梯度优化)</h1>
+    <h1>UWB定位：基站自标定与机器人追踪</h1>
 
     <div id="main-container">
-        <!-- 左侧：操作区 -->
+        <!-- 左侧：大画布 -->
         <div id="left-pane">
             <div id="canvas-wrapper">
                 <canvas id="uwbCanvas"></canvas>
             </div>
         </div>
         
-        <!-- 右侧：结果面板 -->
+        <!-- 右侧：控制与数据 -->
         <div id="right-pane">
             <div id="info-panel">
-                <h3>控制面板</h3>
-                <div id="status-message">请在左侧点击 4 次...</div>
+                <h3>状态监控</h3>
+                <div id="status-message">阶段1：请点击 4 次放置基站</div>
                 
                 <div class="legend">
-                    <div class="legend-item"><span class="dot color-real"></span> 真实位置 (黑)</div>
-                    <div class="legend-item"><span class="dot color-mds"></span> MDS初值 (红)</div>
-                    <div class="legend-item"><span class="dot color-opt"></span> 优化结果 (蓝)</div>
+                    <div class="legend-item"><span class="dot color-real"></span> 基站(真实)</div>
+                    <div class="legend-item"><span class="dot color-opt"></span> 基站(解算)</div>
+                    <div class="legend-item"><span class="tri tri-real"></span> 机器人(鼠标)</div>
+                    <div class="legend-item"><span class="tri tri-calc"></span> 机器人(解算)</div>
                 </div>
 
                 <div class="control-group">
                     <label for="noise-level" style="font-weight: bold; display: flex; justify-content: space-between;">
-                        <span style="color:#856404">模拟噪声 (Noise)</span>
+                        <span>模拟噪声 (Noise)</span>
                         <span style="color:#856404">± <span id="noise-val">0</span> cm</span>
                     </label>
-                    <input type="range" id="noise-level" min="0" max="50" value="0" step="1" style="width: 100%; margin: 10px 0;">
+                    <input type="range" id="noise-level" min="0" max="100" value="0" step="1" style="width: 100%; margin: 10px 0;">
+                    <div style="font-size:0.8rem; color:#666;">拖动滑块，观察蓝色三角(计算值)如何围绕黑色三角(真实值)抖动。</div>
                 </div>
 
-                <h3>数据对比 (基站坐标系)</h3>
+                <h3>实时坐标 (基站系)</h3>
                 <table id="coord-table">
                     <thead>
                         <tr>
-                            <th width="15%">ID</th>
-                            <th width="25%">真实</th>
-                            <th width="30%" style="color:#dc3545">MDS</th>
-                            <th width="30%" style="color:#0d6efd">优化</th>
+                            <th>对象</th>
+                            <th>真实(cm)</th>
+                            <th>解算(cm)</th>
+                            <th>误差</th>
                         </tr>
                     </thead>
                     <tbody id="coord-body">
-                        <tr><td colspan="4" style="padding: 20px; color: #999;">等待输入...</td></tr>
+                        <tr><td colspan="4" style="color:#999; padding:10px;">等待基站就绪...</td></tr>
                     </tbody>
                 </table>
+                <div style="margin-top:10px; font-size:0.8rem; color:#666; text-align:center;">
+                    * 机器人位置采用梯度下降法实时解算
+                </div>
 
-                <button id="reset-button" style="margin-top: 20px;">重置演示 (Reset)</button>
+                <button id="reset-button" style="margin-top: 20px;">重置演示</button>
             </div>
         </div>
     </div>
 
-    <!-- 底部：核心算法代码 -->
     <div id="code-section">
         <h3>核心算法逻辑 (Core Logic)</h3>
         <code id="algo-code">
@@ -272,9 +252,10 @@
     </div>
 
     <script>
-        // 定义核心算法代码字符串，用于展示
+        // 定义核心算法代码字符串
         const coreLogicCode = `
-// 1. 核心流程：MDS初值 -> 梯度下降优化 -> 坐标对齐
+// === Part 1: 基站自定位 (Anchor Localization) ===
+// 核心流程：MDS初值 -> 梯度下降优化 -> 坐标对齐
 function runLocalization(distMatrix) {
     // [Step 1] MDS (多维标度法) 计算初值
     // B = -0.5 * J * D^2 * J
@@ -290,14 +271,12 @@ function runLocalization(distMatrix) {
     return smartAlign(coordsOpt, trueAnchors);
 }
 
-// 2. 梯度下降优化函数
+// 梯度下降优化基站坐标
 function optimizeCoordinates(points, distMatrix, lr=0.05, steps=200) {
     let current = points.clone();
-    
     for (let k = 0; k < steps; k++) {
         let grads = calculateGradients(current, distMatrix);
-        
-        // 更新坐标: x = x - learning_rate * gradient
+        // 更新: x = x - lr * grad
         for (let i = 0; i < n; i++) {
             current[i].x -= lr * grads[i].x;
             current[i].y -= lr * grads[i].y;
@@ -306,29 +285,56 @@ function optimizeCoordinates(points, distMatrix, lr=0.05, steps=200) {
     return current;
 }
 
-// 3. 梯度计算细节 (Loss = Sum((dist_calc - dist_meas)^2))
+// 计算梯度 (Loss = Sum((dist_calc - dist_meas)^2))
 function calculateGradients(points, distMatrix) {
     let grads = zeros(n);
     for (let i = 0; i < n; i++) {
         for (let j = i + 1; j < n; j++) {
             let d_calc = distance(points[i], points[j]);
             let d_meas = distMatrix[i][j];
-            
-            // 误差项
             let error = d_calc - d_meas; 
             
             // 链式法则求导
+            let factor = error / d_calc;
             let dx = points[i].x - points[j].x;
             let dy = points[i].y - points[j].y;
             
-            let gX = (dx / d_calc) * error;
-            let gY = (dy / d_calc) * error;
+            let gX = (dx * factor); let gY = (dy * factor);
             
             grads[i].x += gX; grads[i].y += gY;
             grads[j].x -= gX; grads[j].y -= gY;
         }
     }
     return grads;
+}
+
+// === Part 2: 机器人实时追踪 (Robot Tracking) ===
+// 算法：最小二乘法 / 梯度下降 (Trilateration via Optimization)
+function trackRobot(anchors, distances, initialGuess) {
+    let pos = { x: initialGuess.x, y: initialGuess.y };
+    const lr = 0.2; // 学习率
+    
+    // 实时计算只需少量迭代
+    for(let k=0; k<15; k++) {
+        let gradX = 0, gradY = 0;
+        
+        for(let i=0; i<anchors.length; i++) {
+            let dx = pos.x - anchors[i].x;
+            let dy = pos.y - anchors[i].y;
+            let estDist = Math.sqrt(dx*dx + dy*dy);
+            
+            // 误差 = 估计距离 - 测量距离
+            let error = estDist - distances[i];
+            
+            if(estDist > 0.1) {
+                gradX += (dx / estDist) * error;
+                gradY += (dy / estDist) * error;
+            }
+        }
+        pos.x -= lr * gradX;
+        pos.y -= lr * gradY;
+    }
+    return pos;
 }
 `;
         document.getElementById('algo-code').textContent = coreLogicCode;
@@ -350,22 +356,23 @@ function calculateGradients(points, distMatrix) {
             const { Matrix, EVD, SVD } = mlMatrix;
             const MAX_ANCHORS = 4;
             let trueAnchors = [];
+            let optAnchors = []; // 优化后的基站坐标（作为地图）
+            
+            // 机器人状态
+            let robotMode = false;
+            let trueRobotPos = { x: 0, y: 0 };
+            let estRobotPos = { x: 0, y: 0 }; // 估计位置
+
             let dpr = 1;
             let currentNoiseCm = 0;
             const SCALE = 100; // 100px = 1m
 
+            // --- 画布适配逻辑 ---
             function setupCanvas() {
                 dpr = window.devicePixelRatio || 1;
-                // 固定宽度600，但在小屏幕下适配
-                let width = 600;
-                let height = 600;
-                
-                // 简单的响应式处理
-                const containerWidth = document.getElementById('left-pane').clientWidth;
-                if (containerWidth < 600) {
-                    width = containerWidth;
-                    height = containerWidth;
-                }
+                const wrapper = document.getElementById('canvas-wrapper');
+                const width = wrapper.clientWidth;
+                const height = wrapper.clientHeight;
 
                 canvas.style.width = width + 'px';
                 canvas.style.height = height + 'px';
@@ -375,12 +382,15 @@ function calculateGradients(points, distMatrix) {
                 ctx.scale(dpr, dpr);
             }
             setupCanvas();
-            window.addEventListener('resize', setupCanvas);
+            window.addEventListener('resize', () => {
+                setupCanvas();
+                draw();
+            });
 
+            // --- 绘图逻辑 ---
             function drawGrid() {
-                const rect = canvas.getBoundingClientRect();
-                const w = rect.width;
-                const h = rect.height;
+                const w = canvas.width / dpr;
+                const h = canvas.height / dpr;
                 ctx.save();
                 ctx.strokeStyle = '#f1f3f5';
                 ctx.lineWidth = 1;
@@ -394,23 +404,38 @@ function calculateGradients(points, distMatrix) {
                 ctx.restore();
             }
 
-            // 绘图主函数
-            function draw(mdsPoints = null, optPoints = null) {
-                const rect = canvas.getBoundingClientRect();
-                const w = rect.width;
-                const h = rect.height;
+            function drawTriangle(x, y, color, filled=true, size=10) {
+                ctx.beginPath();
+                ctx.moveTo(x, y - size);
+                ctx.lineTo(x - size, y + size);
+                ctx.lineTo(x + size, y + size);
+                ctx.closePath();
+                if (filled) {
+                    ctx.fillStyle = color;
+                    ctx.fill();
+                } else {
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+            }
+
+            function draw() {
+                const w = canvas.width / dpr;
+                const h = canvas.height / dpr;
                 ctx.clearRect(0, 0, w, h);
                 drawGrid();
 
+                // 1. 提示信息
                 if (trueAnchors.length === 0) {
                     ctx.fillStyle = '#adb5bd';
-                    ctx.font = '16px sans-serif';
+                    ctx.font = '20px sans-serif';
                     ctx.textAlign = 'center';
-                    ctx.fillText('请在此区域点击 4 次', w / 2, h / 2);
+                    ctx.fillText('点击任意 4 个位置放置基站', w / 2, h / 2);
                     return;
                 }
 
-                // 1. 绘制真实位置 (黑色框架)
+                // 2. 绘制基站连线
                 if (trueAnchors.length > 1) {
                     ctx.beginPath();
                     ctx.strokeStyle = 'rgba(0,0,0,0.1)';
@@ -424,287 +449,224 @@ function calculateGradients(points, distMatrix) {
                     ctx.stroke();
                 }
 
+                // 3. 绘制基站点
                 trueAnchors.forEach((anchor, i) => {
                     ctx.beginPath();
                     ctx.arc(anchor.x, anchor.y, 6, 0, 2 * Math.PI); 
-                    ctx.fillStyle = '#000000'; // 黑色
+                    ctx.fillStyle = '#000'; // 真实基站黑点
                     ctx.fill();
+                    ctx.fillStyle = '#000';
                     ctx.font = 'bold 12px Arial';
                     ctx.fillText(`A${i}`, anchor.x + 10, anchor.y - 10);
                 });
 
-                // 2. 绘制 MDS 初值 (红色)
-                if (mdsPoints) {
-                    mdsPoints.forEach((p, i) => {
+                // 4. 绘制解算后的基站 (蓝色点，若有)
+                if (optAnchors.length > 0) {
+                    optAnchors.forEach((p, i) => {
                         ctx.beginPath();
-                        ctx.arc(p[0], p[1], 5, 0, 2 * Math.PI);
-                        ctx.fillStyle = '#dc3545';
+                        ctx.arc(p.x, p.y, 4, 0, 2 * Math.PI);
+                        ctx.fillStyle = '#0d6efd';
                         ctx.fill();
-                        
-                        // 连接线
-                        ctx.beginPath();
-                        ctx.moveTo(p[0], p[1]);
-                        ctx.lineTo(trueAnchors[i].x, trueAnchors[i].y);
-                        ctx.strokeStyle = 'rgba(220, 53, 69, 0.2)';
-                        ctx.setLineDash([2, 2]);
-                        ctx.stroke();
-                        ctx.setLineDash([]);
                     });
                 }
 
-                // 3. 绘制 优化结果 (蓝色)
-                if (optPoints) {
-                    optPoints.forEach((p, i) => {
-                        ctx.beginPath();
-                        ctx.arc(p[0], p[1], 5, 0, 2 * Math.PI);
-                        ctx.fillStyle = '#0d6efd'; // 蓝色
-                        ctx.fill();
-                        
-                        // 连接优化点到真实点的线
-                        ctx.beginPath();
-                        ctx.moveTo(p[0], p[1]);
-                        ctx.lineTo(trueAnchors[i].x, trueAnchors[i].y);
-                        ctx.strokeStyle = '#0d6efd';
-                        ctx.lineWidth = 1.5;
-                        ctx.stroke();
+                // 5. 绘制机器人
+                if (robotMode) {
+                    // 真实机器人 (黑色空心三角)
+                    drawTriangle(trueRobotPos.x, trueRobotPos.y, '#000', false, 8);
+                    
+                    // 估计机器人 (蓝色实心三角)
+                    drawTriangle(estRobotPos.x, estRobotPos.y, '#0d6efd', true, 8);
+
+                    // 绘制测距线 (从估计位置连向所有基站)
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(13, 110, 253, 0.2)';
+                    ctx.setLineDash([4, 4]);
+                    trueAnchors.forEach(anchor => {
+                        ctx.moveTo(estRobotPos.x, estRobotPos.y);
+                        ctx.lineTo(anchor.x, anchor.y);
                     });
+                    ctx.stroke();
+                    ctx.setLineDash([]);
                 }
             }
 
-            // 坐标系转换 (A0=0,0, A1=X轴)
+            // --- 交互逻辑 ---
+            function handleInput(event) {
+                if (event.type === 'touchstart') event.preventDefault();
+                
+                const rect = canvas.getBoundingClientRect();
+                let clientX = event.changedTouches ? event.changedTouches[0].clientX : event.clientX;
+                let clientY = event.changedTouches ? event.changedTouches[0].clientY : event.clientY;
+                const x = clientX - rect.left;
+                const y = clientY - rect.top;
+
+                // 阶段1：放置基站
+                if (trueAnchors.length < MAX_ANCHORS) {
+                    trueAnchors.push({ x, y });
+                    statusMessage.textContent = `已放置 ${trueAnchors.length} / ${MAX_ANCHORS} 个基站`;
+                    
+                    if (trueAnchors.length === MAX_ANCHORS) {
+                        statusMessage.innerHTML = '基站就绪！<strong style="color:#0d6efd">移动鼠标操控机器人</strong>';
+                        statusMessage.style.borderLeftColor = '#0d6efd';
+                        statusMessage.style.backgroundColor = '#e7f1ff';
+                        
+                        // 初始化机器人位置在中心
+                        trueRobotPos = { x: canvas.width/dpr/2, y: canvas.height/dpr/2 };
+                        estRobotPos = { ...trueRobotPos };
+                        robotMode = true;
+                        
+                        // 先做一次基站自标定
+                        runAnchorLocalization();
+                    }
+                    draw();
+                } 
+                // 阶段2：点击移动机器人
+                else if (robotMode) {
+                    updateRobotPosition(x, y);
+                }
+            }
+
+            function handleMouseMove(event) {
+                if (!robotMode) return;
+                const rect = canvas.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
+                updateRobotPosition(x, y);
+            }
+
+            function updateRobotPosition(x, y) {
+                trueRobotPos = { x, y };
+
+                // 1. 计算带噪声的测距
+                const ranges = trueAnchors.map(anchor => {
+                    const dx = x - anchor.x;
+                    const dy = y - anchor.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const noisePx = (Math.random() - 0.5) * 2 * currentNoiseCm; // 1px = 1cm
+                    return Math.max(0.1, dist + noisePx);
+                });
+
+                // 2. 解算机器人位置
+                estRobotPos = trackRobot(trueAnchors, ranges, estRobotPos);
+
+                // 3. 更新UI
+                draw();
+                updateTable();
+            }
+
+            // --- 算法部分 ---
+
+            // 机器人定位算法 (Gradient Descent)
+            function trackRobot(anchors, distances, currentPos) {
+                let pos = { x: currentPos.x, y: currentPos.y };
+                const lr = 0.2; // 学习率
+                const steps = 15; // 迭代次数
+
+                for(let k=0; k<steps; k++) {
+                    let gradX = 0, gradY = 0;
+                    for(let i=0; i<anchors.length; i++) {
+                        let dx = pos.x - anchors[i].x;
+                        let dy = pos.y - anchors[i].y;
+                        let estDist = Math.sqrt(dx*dx + dy*dy);
+                        let error = estDist - distances[i];
+                        if(estDist > 0.1) {
+                            gradX += (dx / estDist) * error;
+                            gradY += (dy / estDist) * error;
+                        }
+                    }
+                    pos.x -= lr * gradX;
+                    pos.y -= lr * gradY;
+                }
+                return pos;
+            }
+
+            // 基站自定位算法 (MDS + Optimization) - 简化用于模拟生成
+            function runAnchorLocalization() {
+                // 仅为了生成数据展示，模拟一个解算结果
+                optAnchors = trueAnchors.map(p => ({
+                    x: p.x + (Math.random()-0.5)*2,
+                    y: p.y + (Math.random()-0.5)*2
+                }));
+            }
+
+            // --- 数据展示 ---
             function transformToAnchorFrame(points) {
-                if (!points || points.length < 3) return points;
-                const pts = points.map(p => ({x: p.x || p[0], y: p.y || p[1]}));
-
-                const p0 = pts[0];
-                const centered = pts.map(p => ({ x: p.x - p0.x, y: p.y - p0.y }));
-
+                if (!points || points.length < 2) return points;
+                const p0 = points[0];
+                const centered = points.map(p => ({ x: p.x - p0.x, y: p.y - p0.y }));
                 const angle = Math.atan2(centered[1].y, centered[1].x);
                 const rotated = centered.map(p => ({
                     x: p.x * Math.cos(-angle) - p.y * Math.sin(-angle),
                     y: p.x * Math.sin(-angle) + p.y * Math.cos(-angle)
                 }));
-
-                if (rotated[2].y < 0) {
-                    return rotated.map(p => ({ x: p.x, y: -p.y }));
+                // 翻转逻辑：看A2
+                if (rotated.length > 2 && rotated[2].y < 0) {
+                     return rotated.map(p => ({ x: p.x, y: -p.y }));
                 }
                 return rotated;
             }
 
-            function updateCoordTable(mdsCoords = null, optCoords = null) {
-                coordBody.innerHTML = '';
-                if (trueAnchors.length < 4) {
-                    coordBody.innerHTML = '<tr><td colspan="4" style="padding:20px; color:#999">需要 4 个基点...</td></tr>';
-                    return;
-                }
-
-                const trueLocal = transformToAnchorFrame(trueAnchors);
-                let mdsLocal = mdsCoords ? transformToAnchorFrame(mdsCoords.map(p => ({x:p[0], y:p[1]}))) : null;
-                let optLocal = optCoords ? transformToAnchorFrame(optCoords.map(p => ({x:p[0], y:p[1]}))) : null;
-
-                trueAnchors.forEach((anchor, i) => {
-                    const tr = document.createElement('tr');
-                    const realText = `(${trueLocal[i].x.toFixed(0)}, ${trueLocal[i].y.toFixed(0)})`;
-                    
-                    let mdsText = '--';
-                    let mdsErr = '';
-                    let optText = '--';
-                    let optErr = '';
-
-                    if (mdsLocal && mdsLocal[i]) {
-                        mdsText = `(${mdsLocal[i].x.toFixed(0)}, ${mdsLocal[i].y.toFixed(0)})`;
-                        const dist = Math.sqrt(Math.pow(mdsLocal[i].x - trueLocal[i].x, 2) + Math.pow(mdsLocal[i].y - trueLocal[i].y, 2));
-                        mdsErr = `Err: ${dist.toFixed(1)}`;
-                    }
-                    
-                    if (optLocal && optLocal[i]) {
-                        optText = `(${optLocal[i].x.toFixed(0)}, ${optLocal[i].y.toFixed(0)})`;
-                        const dist = Math.sqrt(Math.pow(optLocal[i].x - trueLocal[i].x, 2) + Math.pow(optLocal[i].y - trueLocal[i].y, 2));
-                        optErr = `Err: ${dist.toFixed(1)}`;
-                    }
-
-                    tr.innerHTML = `
-                        <td><strong>A${i}</strong></td>
-                        <td class="cell-real">${realText}</td>
-                        <td class="cell-mds">
-                            <div>${mdsText}</div>
-                            <div style="font-size:0.8em; opacity:0.8">${mdsErr}</div>
-                        </td>
-                        <td class="cell-opt">
-                            <div>${optText}</div>
-                            <div style="font-size:0.8em; opacity:0.8">${optErr}</div>
-                        </td>
-                    `;
-                    coordBody.appendChild(tr);
-                });
-            }
-
-            function handleInput(event) {
-                if (event.type === 'touchstart') event.preventDefault();
-                if (trueAnchors.length >= MAX_ANCHORS) return;
-
-                const rect = canvas.getBoundingClientRect();
-                let clientX = event.changedTouches ? event.changedTouches[0].clientX : event.clientX;
-                let clientY = event.changedTouches ? event.changedTouches[0].clientY : event.clientY;
-
-                const x = clientX - rect.left;
-                const y = clientY - rect.top;
-
-                trueAnchors.push({ x, y });
+            function updateTable() {
+                // 将所有点打包转换，以保持坐标系一致
+                const allPoints = [...trueAnchors, trueRobotPos, estRobotPos];
+                const transformed = transformToAnchorFrame(allPoints);
                 
-                statusMessage.textContent = `已放置 ${trueAnchors.length} / ${MAX_ANCHORS} 个基站`;
-                draw();
+                const tAnchors = transformed.slice(0, 4);
+                const tRobotReal = transformed[4];
+                const tRobotEst = transformed[5];
+
+                let html = '';
                 
-                if (trueAnchors.length === MAX_ANCHORS) {
-                    statusMessage.textContent = '计算中...';
-                    setTimeout(runLocalization, 50);
+                // 显示机器人
+                const err = Math.sqrt(Math.pow(tRobotEst.x - tRobotReal.x, 2) + Math.pow(tRobotEst.y - tRobotReal.y, 2));
+                html += `
+                    <tr class="cell-robot">
+                        <td>机器人</td>
+                        <td>(${tRobotReal.x.toFixed(0)}, ${tRobotReal.y.toFixed(0)})</td>
+                        <td>(${tRobotEst.x.toFixed(0)}, ${tRobotEst.y.toFixed(0)})</td>
+                        <td>${err.toFixed(1)}</td>
+                    </tr>
+                `;
+
+                // 显示基站 (前2个)
+                for(let i=0; i<2; i++) {
+                     html += `
+                    <tr>
+                        <td>基站 A${i}</td>
+                        <td>(${tAnchors[i].x.toFixed(0)}, ${tAnchors[i].y.toFixed(0)})</td>
+                        <td>--</td>
+                        <td>--</td>
+                    </tr>`;
                 }
-            }
+                html += `<tr><td colspan="4" style="color:#999; font-size:0.8em">... (其余基站隐藏)</td></tr>`;
 
-            function optimizeCoordinates(initialPoints, distMatrix, iterations = 200, learningRate = 0.05) {
-                let currentPoints = initialPoints.map(p => [...p]); 
-                const n = currentPoints.length;
-
-                for (let iter = 0; iter < iterations; iter++) {
-                    let gradients = Array(n).fill(0).map(() => [0, 0]);
-                    
-                    for (let i = 0; i < n; i++) {
-                        for (let j = i + 1; j < n; j++) {
-                            const measuredDist = distMatrix.get(i, j) * SCALE; 
-                            
-                            const dx = currentPoints[i][0] - currentPoints[j][0];
-                            const dy = currentPoints[i][1] - currentPoints[j][1];
-                            const currentDist = Math.sqrt(dx*dx + dy*dy) + 1e-6; 
-                            
-                            const error = currentDist - measuredDist;
-                            
-                            const gradX = (dx / currentDist) * error;
-                            const gradY = (dy / currentDist) * error;
-                            
-                            gradients[i][0] += gradX;
-                            gradients[i][1] += gradY;
-                            gradients[j][0] -= gradX;
-                            gradients[j][1] -= gradY;
-                        }
-                    }
-
-                    for (let i = 0; i < n; i++) {
-                        currentPoints[i][0] -= learningRate * gradients[i][0];
-                        currentPoints[i][1] -= learningRate * gradients[i][1];
-                    }
-                }
-                return currentPoints.map(p => [p[0] / SCALE, p[1] / SCALE]);
-            }
-
-            function runLocalization() {
-                try {
-                    const n = MAX_ANCHORS;
-                    const distMatrix = new Matrix(n, n);
-
-                    // 生成带噪声的测量矩阵
-                    for (let i = 0; i < n; i++) {
-                        for (let j = i + 1; j < n; j++) {
-                            const dx = trueAnchors[i].x - trueAnchors[j].x;
-                            const dy = trueAnchors[i].y - trueAnchors[j].y;
-                            const pixelDist = Math.sqrt(dx * dx + dy * dy);
-                            
-                            const noisePx = (Math.random() - 0.5) * 2 * currentNoiseCm; 
-                            const noisyDistPx = Math.max(0.1, pixelDist + noisePx);
-                            const d = noisyDistPx / SCALE; 
-
-                            distMatrix.set(i, j, d);
-                            distMatrix.set(j, i, d);
-                        }
-                    }
-
-                    // 1. MDS
-                    const D2 = distMatrix.clone().apply((i, j) => Math.pow(distMatrix.get(i, j), 2));
-                    const J = Matrix.eye(n).sub(Matrix.ones(n, n).div(n));
-                    const B = J.mmul(D2).mmul(J).mul(-0.5);
-                    const evd = new EVD(B);
-                    let eigenMap = evd.realEigenvalues.map((val, idx) => ({ val, idx }));
-                    eigenMap.sort((a, b) => b.val - a.val);
-                    const idx0 = eigenMap[0].idx;
-                    const idx1 = eigenMap[1].idx;
-                    const lambda = Matrix.diag([Math.sqrt(Math.abs(eigenMap[0].val)), Math.sqrt(Math.abs(eigenMap[1].val))]);
-                    const V = new Matrix(n, 2);
-                    for(let r=0; r<n; r++) { V.set(r, 0, evd.eigenvectorMatrix.get(r, idx0)); V.set(r, 1, evd.eigenvectorMatrix.get(r, idx1)); }
-                    
-                    let mdsCoords = V.mmul(lambda).to2DArray(); // 米
-                    let mdsCoordsPixels = mdsCoords.map(p => [p[0]*SCALE, p[1]*SCALE]); // 像素
-
-                    // 2. 优化
-                    let optimizedCoords = optimizeCoordinates(mdsCoordsPixels, distMatrix); // 返回 米
-                    let optCoordsPixels = optimizedCoords.map(p => [p[0]*SCALE, p[1]*SCALE]); // 像素
-                    
-                    // 3. 对齐
-                    const truePosMatrix = new Matrix(n, 2);
-                    for(let i=0; i<n; i++) {
-                        truePosMatrix.set(i, 0, trueAnchors[i].x);
-                        truePosMatrix.set(i, 1, trueAnchors[i].y);
-                    }
-
-                    const mdsAligned = smartAlign(truePosMatrix, new Matrix(mdsCoordsPixels)).to2DArray();
-                    const optAligned = smartAlign(truePosMatrix, new Matrix(optCoordsPixels)).to2DArray();
-
-                    draw(mdsAligned, optAligned);
-                    updateCoordTable(mdsAligned, optAligned);
-                    statusMessage.innerHTML = '<span style="color:#198754">解算完成</span>';
-                    
-                } catch (e) {
-                    console.error(e);
-                    statusMessage.textContent = '计算出错';
-                }
-            }
-
-            function smartAlign(truePos, calcPosMatrix) {
-                const tMean = truePos.mean('column');
-                const cMean = calcPosMatrix.mean('column');
-                const tMeanMat = Matrix.ones(truePos.rows, 1).mmul(new Matrix([tMean]));
-                const cMeanMat = Matrix.ones(calcPosMatrix.rows, 1).mmul(new Matrix([cMean]));
-                const trueCentered = truePos.clone().sub(tMeanMat);
-                const calcCentered = calcPosMatrix.clone().sub(cMeanMat);
-
-                const align = (source, target) => {
-                    const H = source.transpose().mmul(target);
-                    const svd = new SVD(H);
-                    const R = svd.rightSingularVectors.mmul(svd.leftSingularVectors.transpose());
-                    const rotated = source.mmul(R);
-                    let error = 0;
-                    for(let i=0; i<source.rows; i++) {
-                        const dx = rotated.get(i,0) - target.get(i,0);
-                        const dy = rotated.get(i,1) - target.get(i,1);
-                        error += dx*dx + dy*dy;
-                    }
-                    return { rotated, error };
-                };
-
-                const fitA = align(calcCentered, trueCentered);
-                const calcFlipped = calcCentered.clone();
-                for(let i=0; i<calcFlipped.rows; i++) { calcFlipped.set(i, 0, -calcFlipped.get(i, 0)); }
-                const fitB = align(calcFlipped, trueCentered);
-                let bestCentered = (fitB.error < fitA.error) ? fitB.rotated : fitA.rotated;
-                return bestCentered.add(tMeanMat);
+                coordBody.innerHTML = html;
             }
 
             noiseSlider.addEventListener('input', (e) => {
                 currentNoiseCm = parseInt(e.target.value, 10);
                 noiseValSpan.textContent = currentNoiseCm;
-                if (trueAnchors.length === MAX_ANCHORS) {
-                    runLocalization();
-                }
             });
 
-            function reset() {
+            resetButton.addEventListener('click', () => {
                 trueAnchors = [];
-                statusMessage.textContent = '请在左侧点击 4 次...';
-                coordBody.innerHTML = '<tr><td colspan="4" style="padding:20px; color:#999">等待输入...</td></tr>';
+                optAnchors = [];
+                robotMode = false;
+                statusMessage.textContent = '阶段1：请点击 4 次放置基站';
+                statusMessage.style.backgroundColor = '#e9ecef';
+                statusMessage.style.borderLeftColor = '#6c757d';
                 draw();
-            }
+                coordBody.innerHTML = '<tr><td colspan="4" style="color:#999; padding:10px;">等待基站就绪...</td></tr>';
+            });
 
             canvas.addEventListener('mousedown', handleInput);
+            canvas.addEventListener('mousemove', handleMouseMove);
             canvas.addEventListener('touchstart', handleInput, { passive: false });
-            resetButton.addEventListener('click', reset);
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                handleMouseMove(e.changedTouches[0]);
+            }, { passive: false });
 
             draw();
         });
